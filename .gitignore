@@ -1,0 +1,43 @@
+### Gradle ###
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### Java ###
+*.class
+*.log
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+*.war
+*.nar
+*.ear
+hs_err_pid*
+replay_pid*
+
+### IDE - IntelliJ ###
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+### IDE - Eclipse / VSCode ###
+.classpath
+.project
+.settings/
+.vscode/
+bin/
+
+### Spring Boot ###
+### 로컬/비밀 설정 — 외부 API 키, DB 비밀번호 등 커밋 금지 ###
+application-local.yml
+application-local.properties
+application-secret.yml
+*.env
+.env
+
+### OS ###
+.DS_Store
+Thumbs.db
