@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: jipsanim-backend
+  # web(servlet) + webflux(WebClient) 동시 존재 → 서블릿 스택으로 명시 구동
+  main:
+    web-application-type: servlet
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:jipsanim}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&rewriteBatchedStatements=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      # MVP 개발 단계: update. 스키마 안정화 후 validate + Flyway 전환 예정.
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 100
+    open-in-view: false
+    show-sql: false
+
+jwt:
+  # 운영에서는 반드시 JWT_SECRET 환경변수로 주입. 아래는 로컬 개발 기본값.
+  secret: ${JWT_SECRET:bG9jYWwtZGV2LXNlY3JldC1jaGFuZ2UtbWUtdG8tYS1sb25nLXJhbmRvbS1zdHJpbmc=}
+  access-token-validity-seconds: ${JWT_ACCESS_TTL:3600}
+
+external:
+  address:
+    base-url: ${ADDRESS_API_BASE_URL:https://business.juso.go.kr/addrlink/addrLinkApi.do}
+    api-key: ${ADDRESS_API_KEY:}
+    timeout-ms: ${ADDRESS_API_TIMEOUT_MS:3000}
+  molit:
+    # 국토교통부 오피스텔 전월세 실거래가 자료
+    base-url: ${MOLIT_API_BASE_URL:https://apis.data.go.kr/1613000/RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent}
+    api-key: ${MOLIT_API_KEY:}
+    timeout-ms: ${MOLIT_API_TIMEOUT_MS:5000}
+
+price-standard:
+  min-sample-count: ${MIN_SAMPLE_COUNT:30}
+  collect-months: ${COLLECT_MONTHS:3}
+  webclient-concurrency: ${WEBCLIENT_CONCURRENCY:8}
+  # 범위 계산 방식: PERCENTILE | IQR
+  calc-method: ${PRICE_CALC_METHOD:IQR}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+  default-produces-media-type: application/json
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
