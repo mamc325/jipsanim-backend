@@ -45,11 +45,12 @@
 // res 200
 { "content": [
     { "roadAddress": "서울특별시 강남구 테헤란로 …",
-      "regionCode": "1168010100", "regionName": "서울특별시 강남구 역삼동",
-      "sigunguCode": "11680" } ],
+      "bjdongCode": "1168010100",   // 법정동코드 10자리 (정밀 위치)
+      "sigunguCode": "11680",       // 시군구코드 5자리 (실거래가/시세 기준 키)
+      "regionName": "서울특별시 강남구 역삼동" } ],
   "totalCount": 3 }
 ```
-- 502 `EXTERNAL_ADDRESS_API_ERROR` (외부 API 실패, 서버 오류로 전파 금지 — 502로 명시). 호출 결과는 `ExternalApiCallLog` 기록.
+- 502 `EXTERNAL_ADDRESS_API_ERROR`: 주소 검색은 외부 주소 API에 직접 의존하는 요청이므로, 실패 시 502로 명확히 반환한다. (Constitution I의 "격리"는 외부 장애를 **매물 검증·검색 등 핵심 내부 요청**으로 전파하지 않는다는 의미이며, 외부 의존 요청 자체의 502 반환과 상충하지 않는다.) 호출 결과는 `ExternalApiCallLog` 기록.
 
 ---
 
@@ -58,8 +59,9 @@
 ### POST /api/properties  [REALTOR]  → DRAFT 생성
 ```json
 // req
-{ "title":"역삼 오피스텔","description":"...(20자+)","roadAddress":"...","regionCode":"1168010100",
+{ "title":"역삼 오피스텔","description":"...(20자+)","roadAddress":"...","bjdongCode":"1168010100",
   "regionName":"...","nearStation":"강남역","propertyType":"OFFICETEL","dealType":"MONTHLY_RENT",
+  // sigunguCode(5자리)는 서버가 bjdongCode 앞 5자리로 파생 저장
   "deposit":10000000,"monthlyRent":700000,"area":33.0,"roomCount":1,
   "images":[{"imageUrl":"https://...","isPrimary":true}] }
 // res 201 { "propertyId": 10, "status": "DRAFT" }
@@ -87,7 +89,7 @@
 ## 매물 검색 (사용자, ACTIVE only)
 
 ### GET /api/properties  [PUBLIC]
-Query: `region, regionCode, dealType, propertyType, minDeposit, maxDeposit, minRent, maxRent, minArea, maxArea, roomCount, sort, page, size`
+Query: `regionName, sigunguCode, dealType, propertyType, minDeposit, maxDeposit, minRent, maxRent, minArea, maxArea, roomCount, sort, page, size`
 ```json
 // res 200 (page)
 { "content":[ {"propertyId":10,"title":"...","regionName":"...","dealType":"MONTHLY_RENT",
@@ -125,7 +127,7 @@ Query: `region, regionCode, dealType, propertyType, minDeposit, maxDeposit, minR
 
 ### POST /api/admin/price-standards/batch/run  [ADMIN]
 ```json
-// req(optional) { "months": 3, "regionCodes": ["11680","11650"] }  // 미지정 시 전체 대상
+// req(optional) { "months": 3, "sigunguCodes": ["11680","11650"] }  // 시군구 5자리, 미지정 시 전체 대상
 // res 202 { "batchJobId": 3, "status": "RUNNING", "jobMonth":"2026-07" }
 ```
 
@@ -140,7 +142,7 @@ Query: `region, regionCode, dealType, propertyType, minDeposit, maxDeposit, minR
 ### GET /api/admin/price-standard-candidates?status=PENDING&page=0  [ADMIN]
 ```json
 // content[]:
-{ "candidateId":7,"regionCode":"1168010100","regionName":"강남구 역삼동",
+{ "candidateId":7,"sigunguCode":"11680","regionName":"강남구",
   "propertyType":"OFFICETEL","dealType":"MONTHLY_RENT","calcMethod":"IQR",
   "calcMinDeposit":5000000,"calcMaxDeposit":50000000,
   "calcMinMonthlyRent":550000,"calcMaxMonthlyRent":1800000,
@@ -150,28 +152,29 @@ Query: `region, regionCode, dealType, propertyType, minDeposit, maxDeposit, minR
 ### PATCH /api/admin/price-standard-candidates/{candidateId}/approve  [ADMIN]
 - 기존 ACTIVE→EXPIRED, 신규 ACTIVE, History 생성 (트랜잭션).
 ```json
-// res 200 { "candidateId":7,"priceStandardId":42,"status":"APPROVED","activated":true }
+// res 200 { "candidateId":7,"priceStandardId":42,"status":"APPROVED","activated":true,"dataStatus":"INSUFFICIENT_DATA" }
 ```
-- 409 `ALREADY_REVIEWED`. 422 `INSUFFICIENT_DATA_APPROVAL_BLOCKED`(정책상 소표본 승인 차단 시).
+- 409 `ALREADY_REVIEWED`.
+- 후보의 `dataStatus=INSUFFICIENT_DATA` 여도 승인은 **허용**하되, 생성되는 `PriceStandard` 가 `dataStatus=INSUFFICIENT_DATA` 를 상속한다. 이 기준으로 검증 시 가격 규칙은 HIGH 판정 대신 `REVIEW_REQUIRED` 로 처리한다(FR-042). 관리자 판단으로 소표본 기준을 반영할 수 있게 하되 자동 위험 판정에는 쓰지 않는다.
 
 ### PATCH /api/admin/price-standard-candidates/{candidateId}/reject  [ADMIN]
 ```json
 // req { "reason":"표본 부족" }  // res 200 { "candidateId":7,"status":"REJECTED" }
 ```
 
-### GET /api/admin/price-standards?status=ACTIVE&regionCode=11680&page=0  [ADMIN]
+### GET /api/admin/price-standards?status=ACTIVE&sigunguCode=11680&page=0  [ADMIN]
 ```json
 // content[]:
-{ "id":42,"regionCode":"1168010100","propertyType":"OFFICETEL","dealType":"MONTHLY_RENT",
+{ "id":42,"sigunguCode":"11680","regionName":"강남구","propertyType":"OFFICETEL","dealType":"MONTHLY_RENT",
   "minDeposit":5000000,"maxDeposit":50000000,"minMonthlyRent":550000,"maxMonthlyRent":1800000,
-  "sampleCount":120,"source":"MOLIT_OFFICETEL_RENT","status":"ACTIVE",
+  "sampleCount":120,"dataStatus":"SUFFICIENT","source":"MOLIT_OFFICETEL_RENT","status":"ACTIVE",
   "effectiveFrom":"..","effectiveTo":null }
 ```
 
 ### GET /api/admin/external-api-call-logs?apiType=REAL_ESTATE_OFFICETEL_RENT&success=false&page=0  [ADMIN]
 ```json
-// content[]:
-{ "id":100,"apiType":"REAL_ESTATE_OFFICETEL_RENT","requestUrl":"...","responseStatus":null,
+// content[]: requestUrl/requestParams 는 serviceKey(인증키)를 제거·마스킹한 값으로 저장/응답한다.
+{ "id":100,"apiType":"REAL_ESTATE_OFFICETEL_RENT","requestUrl":"...&serviceKey=***","responseStatus":null,
   "success":false,"errorMessage":"timeout","elapsedTimeMs":5000,"batchJobId":3,"calledAt":".." }
 ```
 
@@ -187,5 +190,5 @@ Query: `region, regionCode, dealType, propertyType, minDeposit, maxDeposit, minR
 | NOT_FOUND | 404 | 리소스 없음 |
 | INVALID_STATE | 409 | 상태 전이 불가 |
 | ALREADY_REVIEWED | 409 | 이미 처리(멱등) |
-| INSUFFICIENT_DATA_APPROVAL_BLOCKED | 422 | 소표본 후보 승인 차단 |
 | EXTERNAL_ADDRESS_API_ERROR | 502 | 외부 주소 API 실패 |
+| EXTERNAL_REAL_ESTATE_API_ERROR | 502 | 외부 실거래가 API 실패 |
