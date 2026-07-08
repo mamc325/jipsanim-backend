@@ -34,7 +34,8 @@ erDiagram
         bigint realtor_id FK
         varchar title
         varchar road_address
-        varchar region_code
+        varchar bjdong_code
+        varchar sigungu_code
         varchar property_type
         varchar deal_type
         bigint deposit
@@ -66,7 +67,7 @@ erDiagram
     }
     PRICE_STANDARD {
         bigint id PK
-        varchar region_code
+        varchar sigungu_code
         varchar property_type
         varchar deal_type
         bigint min_deposit
@@ -74,6 +75,7 @@ erDiagram
         bigint min_monthly_rent
         bigint max_monthly_rent
         int sample_count
+        varchar data_status
         varchar status
         varchar active_key UK
         datetime effective_from
@@ -82,7 +84,7 @@ erDiagram
     PRICE_STANDARD_CANDIDATE {
         bigint id PK
         bigint batch_job_id FK
-        varchar region_code
+        varchar sigungu_code
         varchar property_type
         varchar deal_type
         varchar calc_method
@@ -94,7 +96,7 @@ erDiagram
     PRICE_STANDARD_HISTORY {
         bigint id PK
         bigint price_standard_id FK
-        varchar region_code
+        varchar sigungu_code
         bigint prev_min_deposit
         bigint new_min_deposit
         bigint changed_by
@@ -132,4 +134,5 @@ erDiagram
 - `PRICE_STANDARD.active_key` UNIQUE → 동일 (region, type, deal) ACTIVE 중복 방지 (plan D3).
 - `REALTOR.user_id` UNIQUE → 사용자당 중개사 프로필 1개.
 - `USER.email` UNIQUE.
-- 검색 인덱스: `PROPERTY(status, region_code, deal_type, property_type)`.
+- 검색 인덱스: `PROPERTY(status, sigungu_code, deal_type, property_type)`.
+- `PRICE_STANDARD.active_key` = `sigungu_code:property_type:deal_type` (ACTIVE 일 때만).
