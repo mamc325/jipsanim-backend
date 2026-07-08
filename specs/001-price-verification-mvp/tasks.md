@@ -20,7 +20,7 @@
 ## Phase 2. 외부 주소 API + 매물 CRUD
 - [ ] T020 `external/log`: `ExternalApiCallLog` 엔티티/리포지토리 + 호출 로깅 wrapper (FR-012, D5)
 - [ ] T021 [P] 테스트: `AddressClient` (MockWebServer 응답 파싱, timeout→502)
-- [ ] T022 `external/address` `AddressClient`(WebClient) + `GET /addresses/search` (FR-010~011)
+- [ ] T022 `external/address` `AddressClient`(WebClient) + `GET /addresses?keyword=` (FR-010~011)
 - [ ] T023 엔티티 `Property`, `PropertyImage` + 리포지토리 (data-model)
 - [ ] T024 [P] 테스트: 매물 CRUD 소유자 검증, 상태 제약(DRAFT/PENDING만 수정)
 - [ ] T025 매물 컨트롤러/서비스: `POST/PATCH/DELETE /properties`, `GET /properties/{id}` (FR-020~021, 023)
@@ -31,7 +31,7 @@
 - [ ] T032 `external/molit` `RealEstateClient`(WebClient, XML→DTO) (FR-030)
 - [ ] T033 [P] 테스트: 배치 bounded concurrency 수집 — 일부 지역 실패 시 PARTIAL_FAILED, CallLog 기록 검증 (FR-031~032)
 - [ ] T034 `PriceStandardBatchService`: `Flux.flatMap(fetch, concurrency=N)` 수집 → 결과 집계 → BatchJob/CallLog 저장 (plan D1)
-- [ ] T035 스케줄러(`@Scheduled` 매월1일 03:00) + 수동 트리거 `POST /admin/price-standards/batch/run`, `GET /admin/price-standard-batch-jobs`, `GET /admin/external-api-call-logs` (FR-030, 036)
+- [ ] T035 스케줄러(`@Scheduled` 매월1일 03:00) + 수동 트리거 `POST /admin/price-standard-batch-jobs`(잡 생성), `GET /admin/price-standard-batch-jobs`, `GET /admin/external-api-call-logs` (FR-030, 036)
 
 ## Phase 4. 시세 기준 계산 + 후보 승인
 - [ ] T040 [P] 테스트: `RangeCalculator` — IQR/백분위, 이상치 제거, 경계값, 소표본→INSUFFICIENT_DATA (Constitution III)
@@ -39,16 +39,16 @@
 - [ ] T042 엔티티 `PriceStandardCandidate`, `PriceStandard`(+`active_key` 생성컬럼 UNIQUE), `PriceStandardHistory` + 리포지토리
 - [ ] T043 후보 생성 서비스: 수집 표본 그룹핑 → RangeCalculator → Candidate(PENDING) 저장 (FR-033~034)
 - [ ] T044 [P] 테스트: 후보 승인 ACTIVE 교체 — 기존 EXPIRED, 신규 ACTIVE 유일성(active_key), History 생성, 멱등(ALREADY_REVIEWED) (plan D3)
-- [ ] T045 후보 승인/반려 서비스+컨트롤러: `PATCH …/candidates/{id}/approve|reject`, `GET …/candidates`, `GET …/price-standards` (FR-035~036)
+- [ ] T045 후보 승인/반려 서비스+컨트롤러: `POST …/candidates/{id}/approval|rejection`, `GET …/candidates`, `GET …/price-standards` (FR-035~036)
 
 ## Phase 5. 매물 자동 검증 + 관리자 승인
 - [ ] T050 엔티티 `PropertyVerification`, `PropertyVerificationReason` + 리포지토리
 - [ ] T051 [P] 테스트: 각 `VerificationRule`(필수/이미지/설명/주소-지역/중복) 단위
 - [ ] T052 [P] 테스트: 가격 규칙 — ACTIVE 기준 이탈→PRICE_OUT_OF_RANGE, 기준없음/INSUFFICIENT→HIGH 금지/REVIEW_REQUIRED (FR-041~042)
 - [ ] T053 검증 엔진: `VerificationRule` 목록 + `RiskScorer`(riskLevel 산정) (plan D4, FR-040~045)
-- [ ] T054 `POST /properties/{id}/submit` 연결: 검증 실행→Verification 저장→Property PENDING (FR-022)
+- [ ] T054 `POST /properties/{id}/submission` 연결: 검증 실행→Verification 저장→Property PENDING (FR-022)
 - [ ] T055 [P] 테스트: 관리자 승인/반려 상태전이 + 멱등
-- [ ] T056 관리자 검증 컨트롤러: `GET /admin/property-verifications`(status/riskLevel 필터), `approve`, `reject`; 승인 시 도메인 이벤트 발행(4차 대비, plan D6) (FR-050)
+- [ ] T056 관리자 검증 컨트롤러: `GET /admin/property-verifications`(status/riskLevel 필터), `POST …/{id}/approval`, `POST …/{id}/rejection`; 승인 시 도메인 이벤트 발행(4차 대비, plan D6) (FR-050)
 
 ## Phase 6. 검색
 - [ ] T060 [P] 테스트: QueryDSL 조건 검색 — ACTIVE만, 각 필터/정렬/페이지 (FR-051)

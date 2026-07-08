@@ -62,7 +62,7 @@ MVP 세로 슬라이스:
 ### 매물
 - **FR-020** 중개사는 매물을 DRAFT 로 저장/수정/삭제한다. 본인 매물만 수정·삭제 가능하다.
 - **FR-021** 매물은 `bjdongCode`(10) + `sigunguCode`(5, 서버가 앞 5자리로 파생 저장), `propertyType(OFFICETEL 등)`, `dealType(JEONSE/MONTHLY_RENT)`, `deposit`, `monthlyRent`, `area`, `roomCount`, 대표 이미지, 설명을 가진다.
-- **FR-022** `POST submit` 시 자동 검증을 수행하고 매물을 `PENDING`, 검증 결과를 저장한다. DRAFT 가 아닌 상태에서의 submit 은 거부한다.
+- **FR-022** `POST /properties/{id}/submission` 시 자동 검증을 수행하고 매물을 `PENDING`, 검증 결과를 저장한다. DRAFT 가 아닌 상태에서의 제출은 거부한다.
 - **FR-023** 매물 상태: `DRAFT → PENDING → ACTIVE | REJECTED`, 그리고 `ACTIVE → CLOSED/HIDDEN`, 모든 상태 → `DELETED`(soft).
 
 ### 외부 실거래가 배치 & 시세 기준

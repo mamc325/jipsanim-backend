@@ -10,6 +10,14 @@
 - 페이지네이션: `?page=0&size=20&sort=createdAt,desc`, 응답 `data`에 `content/totalElements/totalPages/number`.
 - 권한 표기: [USER] [REALTOR] [ADMIN] [PUBLIC]
 
+### REST 컨벤션 (프로젝트 규칙)
+- **CRUD**: 리소스 + 표준 메서드(`POST/GET/PATCH/DELETE`).
+- **상태 전이(부수효과 있음)**: 액션을 **명사형 서브리소스**로 두고 **POST**. 예) `POST .../approval`, `.../rejection`, `.../submission`, `.../cancellation`. (동사 URL + PATCH 금지)
+- **부수효과 없는 단순 플래그 갱신**: 리소스 `PATCH` (예: 알림 읽음).
+- **잡/작업 실행**: "잡 리소스 생성"으로 모델링 → `POST` 컬렉션, `202` + 잡 리소스 반환, `GET`으로 폴링.
+- **검색/필터**: 컬렉션에 쿼리 파라미터 (`GET /addresses?keyword=`).
+- **본인 스코프 조회**: `/me/...`.
+
 ---
 
 ## 인증 / 사용자
@@ -40,7 +48,7 @@
 
 ## 주소 검색
 
-### GET /api/addresses/search?keyword=서울 강남구 역삼동&page=0&size=10  [REALTOR|ADMIN]
+### GET /api/addresses?keyword=서울 강남구 역삼동&page=0&size=10  [REALTOR|ADMIN]
 ```json
 // res 200
 { "content": [
@@ -72,7 +80,7 @@
 
 ### DELETE /api/properties/{propertyId}  [REALTOR, owner]  → soft delete (DELETED)
 
-### POST /api/properties/{propertyId}/submit  [REALTOR, owner]  → 자동 검증
+### POST /api/properties/{propertyId}/submission  [REALTOR, owner]  → 자동 검증
 ```json
 // res 200
 { "propertyId":10, "status":"PENDING", "verificationStatus":"REVIEW_REQUIRED",
@@ -109,13 +117,13 @@ Query: `regionName, sigunguCode, dealType, propertyType, minDeposit, maxDeposit,
   "reasons":["PRICE_OUT_OF_RANGE","MISSING_IMAGE"],"requestedAt":"2026-07-07T.." }
 ```
 
-### PATCH /api/admin/property-verifications/{verificationId}/approve  [ADMIN]
+### POST /api/admin/property-verifications/{verificationId}/approval  [ADMIN]
 ```json
 // res 200 { "verificationId":5,"propertyId":10,"propertyStatus":"ACTIVE","verificationStatus":"APPROVED" }
 ```
 - 409 `ALREADY_REVIEWED` (멱등: 이미 처리된 건 재처리 금지).
 
-### PATCH /api/admin/property-verifications/{verificationId}/reject  [ADMIN]
+### POST /api/admin/property-verifications/{verificationId}/rejection  [ADMIN]
 ```json
 // req { "rejectedReason":"허위 가격 의심" }
 // res 200 { "verificationStatus":"REJECTED","propertyStatus":"REJECTED" }
@@ -125,11 +133,13 @@ Query: `regionName, sigunguCode, dealType, propertyType, minDeposit, maxDeposit,
 
 ## 관리자: 시세 기준 배치 / 후보 / 기준
 
-### POST /api/admin/price-standards/batch/run  [ADMIN]
+### POST /api/admin/price-standard-batch-jobs  [ADMIN]  → 배치 잡 생성(=실행)
 ```json
 // req(optional) { "months": 3, "sigunguCodes": ["11680","11650"] }  // 시군구 5자리, 미지정 시 전체 대상
-// res 202 { "batchJobId": 3, "status": "RUNNING", "jobMonth":"2026-07" }
+// res 202 Location: /api/admin/price-standard-batch-jobs/3
+//         { "batchJobId": 3, "status": "RUNNING", "jobMonth":"2026-07" }
 ```
+- 잡 실행 = 리소스 생성. 생성 후 `GET /api/admin/price-standard-batch-jobs/{id}` 로 진행 상태를 폴링.
 
 ### GET /api/admin/price-standard-batch-jobs?page=0  [ADMIN]
 ```json
@@ -149,7 +159,7 @@ Query: `regionName, sigunguCode, dealType, propertyType, minDeposit, maxDeposit,
   "sampleCount":18,"dataStatus":"INSUFFICIENT_DATA","calculatedMonth":"2026-06","status":"PENDING" }
 ```
 
-### PATCH /api/admin/price-standard-candidates/{candidateId}/approve  [ADMIN]
+### POST /api/admin/price-standard-candidates/{candidateId}/approval  [ADMIN]
 - 기존 ACTIVE→EXPIRED, 신규 ACTIVE, History 생성 (트랜잭션).
 ```json
 // res 200 { "candidateId":7,"priceStandardId":42,"status":"APPROVED","activated":true,"dataStatus":"INSUFFICIENT_DATA" }
@@ -157,7 +167,7 @@ Query: `regionName, sigunguCode, dealType, propertyType, minDeposit, maxDeposit,
 - 409 `ALREADY_REVIEWED`.
 - 후보의 `dataStatus=INSUFFICIENT_DATA` 여도 승인은 **허용**하되, 생성되는 `PriceStandard` 가 `dataStatus=INSUFFICIENT_DATA` 를 상속한다. 이 기준으로 검증 시 가격 규칙은 HIGH 판정 대신 `REVIEW_REQUIRED` 로 처리한다(FR-042). 관리자 판단으로 소표본 기준을 반영할 수 있게 하되 자동 위험 판정에는 쓰지 않는다.
 
-### PATCH /api/admin/price-standard-candidates/{candidateId}/reject  [ADMIN]
+### POST /api/admin/price-standard-candidates/{candidateId}/rejection  [ADMIN]
 ```json
 // req { "reason":"표본 부족" }  // res 200 { "candidateId":7,"status":"REJECTED" }
 ```
