@@ -16,7 +16,7 @@ MVP 세로 슬라이스:
 
 ### In Scope (1차)
 - 회원가입/로그인(JWT), 역할(USER / REALTOR / ADMIN) 접근 제어, 내 정보 조회
-- 행정안전부 주소 API(WebClient) 기반 주소 검색·표준화, `regionCode`/`regionName` 추출
+- 행정안전부 주소 API(WebClient) 기반 주소 검색·표준화, `bjdongCode`(10)/`sigunguCode`(5)/`regionName` 추출
 - 매물 등록(DRAFT)/수정/삭제/상세/목록, 검증 요청(submit)
 - 국토교통부 오피스텔 전월세 실거래가 API(WebClient) **배치 수집** (스케줄 + 수동 실행)
 - `ExternalApiCallLog`, `PriceStandardBatchJob` 기록, `PARTIAL_FAILED` 지원
@@ -56,31 +56,31 @@ MVP 세로 슬라이스:
 
 ### 주소 표준화
 - **FR-010** 키워드로 주소 검색 시 WebClient 로 행정안전부 주소 API 를 호출해 표준 주소 후보 목록을 반환한다.
-- **FR-011** 각 후보에서 `roadAddress`, `regionCode`(법정동코드), `regionName` 을 추출해 제공한다. 실거래가 조회에는 법정동코드 앞 5자리(시군구)를 사용한다.
+- **FR-011** 각 후보에서 `roadAddress`, `bjdongCode`(법정동코드 10자리), `sigunguCode`(시군구 5자리 = bjdongCode 앞 5자리), `regionName` 을 추출해 제공한다. 정밀 위치는 bjdongCode, 실거래가 조회·시세 기준 매칭은 sigunguCode 를 사용한다.
 - **FR-012** 주소 API 호출은 timeout/재시도 정책을 가지며 결과를 `ExternalApiCallLog` 에 남긴다. 실패 시 사용자에게 명확한 오류를 반환하되 서버 오류로 전파하지 않는다.
 
 ### 매물
 - **FR-020** 중개사는 매물을 DRAFT 로 저장/수정/삭제한다. 본인 매물만 수정·삭제 가능하다.
-- **FR-021** 매물은 `regionCode`, `propertyType(OFFICETEL 등)`, `dealType(JEONSE/MONTHLY_RENT)`, `deposit`, `monthlyRent`, `area`, `roomCount`, 대표 이미지, 설명을 가진다.
+- **FR-021** 매물은 `bjdongCode`(10) + `sigunguCode`(5, 서버가 앞 5자리로 파생 저장), `propertyType(OFFICETEL 등)`, `dealType(JEONSE/MONTHLY_RENT)`, `deposit`, `monthlyRent`, `area`, `roomCount`, 대표 이미지, 설명을 가진다.
 - **FR-022** `POST submit` 시 자동 검증을 수행하고 매물을 `PENDING`, 검증 결과를 저장한다. DRAFT 가 아닌 상태에서의 submit 은 거부한다.
 - **FR-023** 매물 상태: `DRAFT → PENDING → ACTIVE | REJECTED`, 그리고 `ACTIVE → CLOSED/HIDDEN`, 모든 상태 → `DELETED`(soft).
 
 ### 외부 실거래가 배치 & 시세 기준
-- **FR-030** 스케줄러가 매월 1일 03:00 에 수집 대상 `regionCode` 목록에 대해 최근 N개월(기본 3개월) 오피스텔 전월세 실거래가를 수집한다. 관리자 수동 실행 API 도 제공한다.
+- **FR-030** 스케줄러가 매월 1일 03:00 에 수집 대상 `sigunguCode`(시군구 5자리) 목록에 대해 최근 N개월(기본 3개월) 오피스텔 전월세 실거래가를 수집한다. 관리자 수동 실행 API 도 제공한다.
 - **FR-031** 수집은 지역별로 WebClient 를 사용하되 **bounded concurrency (`concurrency=N`)** 로 병렬 호출한다. XML 응답을 DTO 로 파싱 후 JPA 저장으로 넘긴다.
 - **FR-032** 배치는 `PriceStandardBatchJob`(RUNNING/SUCCESS/PARTIAL_FAILED/FAILED)과 지역별 `ExternalApiCallLog` 를 남긴다. 일부 지역 실패 시 전체를 실패시키지 않고 `PARTIAL_FAILED` 로 두고 해당 지역만 재수집 가능하다.
 - **FR-033** 수집 표본을 지역·매물유형·거래유형별로 그룹핑하고, 보증금/월세에 대해 **p10~p90 또는 IQR** 기반 정상 범위를 산출해 `PriceStandardCandidate(PENDING)` 를 생성한다. `sampleCount`, `calculatedMonth`, `source` 를 기록한다.
-- **FR-034** 표본 수가 `MIN_SAMPLE_COUNT`(설정값, 기본 30) 미만이면 후보를 생성하되 `dataStatus=INSUFFICIENT_DATA` 로 표시하고, 관리자 검토 없이는 검증에 사용하지 않는다.
-- **FR-035** 관리자가 후보를 승인하면: 동일 (region, propertyType, dealType) 의 기존 `ACTIVE → EXPIRED(effectiveTo=now)` 처리, 후보 값으로 신규 `PriceStandard(ACTIVE, effectiveFrom=now)` 생성, `PriceStandardHistory` 에 이전/신규 값 기록. 반려 시 후보만 `REJECTED`.
+- **FR-034** 표본 수가 `MIN_SAMPLE_COUNT`(설정값, 기본 30) 미만이면 후보를 생성하되 `dataStatus=INSUFFICIENT_DATA` 로 표시한다.
+- **FR-035** 관리자가 후보를 승인하면: 동일 (sigunguCode, propertyType, dealType) 의 기존 `ACTIVE → EXPIRED(effectiveTo=now)` 처리, 후보 값으로 신규 `PriceStandard(ACTIVE, effectiveFrom=now)` 생성(후보의 `dataStatus` 상속), `PriceStandardHistory` 에 이전/신규 값 기록. 반려 시 후보만 `REJECTED`. **소표본(INSUFFICIENT_DATA) 후보도 승인 가능**하되 상속된 dataStatus 로 인해 자동 위험 판정에는 쓰이지 않는다(FR-042).
 - **FR-036** 관리자는 배치 실행 이력, 후보 목록(status 필터), 외부 API 호출 이력, ACTIVE 기준 목록을 조회한다.
 
 ### 매물 자동 검증
 - **FR-040** submit 시 다음을 확인해 사유(reasonType)를 생성한다: `MISSING_REQUIRED_FIELD`, `MISSING_IMAGE`, `DESCRIPTION_TOO_SHORT`, `PRICE_OUT_OF_RANGE`, `ADDRESS_REGION_MISMATCH`, `DUPLICATE_SUSPECTED`.
-- **FR-041** 가격 이상치는 매물의 (regionCode, propertyType, dealType) 로 `PriceStandard(ACTIVE)` 를 조회해 판정한다. 기준 범위를 벗어나면 `PRICE_OUT_OF_RANGE` 를 남기고 벗어난 정도로 riskLevel 을 가중한다.
+- **FR-041** 가격 이상치는 매물의 (sigunguCode, propertyType, dealType) 로 `PriceStandard(ACTIVE)` 를 조회해 판정한다. 기준 범위를 벗어나면 `PRICE_OUT_OF_RANGE` 를 남기고 벗어난 정도로 riskLevel 을 가중한다.
 - **FR-042** 해당 기준이 없거나 기준의 표본이 부족(`INSUFFICIENT_DATA`)하면 가격으로 HIGH 판정하지 않는다. 검증 결과를 `REVIEW_REQUIRED` 로 두어 관리자 판단에 맡긴다. (Constitution III)
 - **FR-043** `riskLevel ∈ {LOW, MEDIUM, HIGH}` 을 산정한다. LOW=필수정보 충분+가격 정상, MEDIUM=일부 정보 부족 또는 가격 소폭 이탈, HIGH=가격 대폭 이탈/주소 불일치/중복 의심.
 - **FR-044** 검증 결과는 `PropertyVerification`(요청자/리뷰어/status/riskLevel/rejectedReason)과 다건 `PropertyVerificationReason`(reasonType/message) 으로 저장한다.
-- **FR-045** 중복 의심은 동일 regionCode + 유사 주소 + 동일 dealType/가격 근접 매물 존재 여부로 판단한다(MVP: 단순 규칙 기반).
+- **FR-045** 중복 의심은 동일 sigunguCode + 유사 주소 + 동일 dealType/가격 근접 매물 존재 여부로 판단한다(MVP: 단순 규칙 기반).
 
 ### 매물 승인/검색
 - **FR-050** 관리자는 검증 대기 매물을 `riskLevel` 필터로 조회하고 승인/반려한다. 승인 시 `Property.status=ACTIVE`, `verificationStatus=APPROVED`. 반려 시 `verificationStatus=REJECTED` + `rejectedReason`.
@@ -100,6 +100,12 @@ MVP 세로 슬라이스:
 - Q: 매물 유형 범위는? → **A: MVP 는 OFFICETEL 전월세부터.** 확장 유형은 후속.
 - Q: 성능/검색 수치 문서화? → **A: 실측 전 미기재(Constitution VII).**
 
+### Session 2026-07-08 (리뷰 피드백 반영)
+- Q: 지역 코드가 5자리/10자리로 혼용된다. 어떻게 분리하는가? → **A: `bjdongCode`(법정동 10자리) + `sigunguCode`(시군구 5자리)로 분리.** 매물은 둘 다 저장(sigunguCode는 앞 5자리 파생). 실거래가 수집·시세 기준·검증 매칭은 모두 sigunguCode(5) 기준. PriceStandard/Candidate/History 는 sigunguCode 만 보유.
+- Q: 소표본 후보 승인을 막을 것인가, 승인 가능성을 남길 것인가? → **A: 승인 가능성을 남긴다.** 422 하드 차단 대신 `price_standard.data_status` 를 추가하고, 후보 승인 시 dataStatus 를 상속한다. 검증 시 INSUFFICIENT_DATA 기준은 HIGH 판정에 쓰지 않고 REVIEW_REQUIRED 로 처리(FR-042). `INSUFFICIENT_DATA_APPROVAL_BLOCKED` 오류는 제거.
+- Q: 외부 API 실패의 502 반환과 "장애 전파 금지" 원칙이 충돌하지 않는가? → **A: 충돌 아님.** 주소/실거래가 조회처럼 외부 API에 직접 의존하는 요청은 실패 시 502 가 자연스럽다. Constitution I의 격리는 외부 장애를 **매물 검증·검색 등 핵심 내부 요청**으로 전파하지 않는다는 의미로 좁힌다.
+- Q: 외부 호출 로그의 인증키 노출은? → **A: request_url·request_params 모두 serviceKey 제거·마스킹** 후 저장(단순 params 뿐 아니라 url 도).
+
 ## 6. Key Entities (개요, 상세는 data-model.md)
 User, Realtor, Property, PropertyVerification, PropertyVerificationReason, PriceStandard, PriceStandardCandidate, PriceStandardHistory, PriceStandardBatchJob, ExternalApiCallLog, (참고 이미지: PropertyImage).
 
@@ -114,4 +120,4 @@ User, Realtor, Property, PropertyVerification, PropertyVerificationReason, Price
 ## 8. 위험/미해결 (Risks / [NEEDS CLARIFICATION])
 - 국토부/주소 API 인증키 발급 및 rate limit 정책 확인 필요.
 - 오피스텔 전월세 API 응답 필드(보증금/월세 단위, 결측치) 실제 스키마 확인 필요 → 파싱 DTO 는 실 응답 기준으로 확정.
-- `regionCode` 표준(법정동코드 10자리 vs 시군구 5자리) 사용 규칙 문서 고정 필요(현재: 저장은 법정동, 실거래가 조회는 앞 5자리).
+- ~~`regionCode` 표준(10자리 vs 5자리) 사용 규칙~~ → **해결**: `bjdongCode`(10) + `sigunguCode`(5) 분리, 시세/검증은 sigunguCode 기준 (Clarifications 2026-07-08).

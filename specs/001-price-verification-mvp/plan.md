@@ -83,7 +83,8 @@ Flux.fromIterable(targetRegions)                     // 수집 대상 regionCode
 3. 신규 ACTIVE insert (effectiveFrom=now)
 4. History insert (previous/new)
 5. Candidate → APPROVED
-- 최종 방어선: **부분 유니크 인덱스** `UNIQUE(regionCode, propertyType, dealType) WHERE status='ACTIVE'`. MySQL 은 부분 인덱스 미지원 → 생성 컬럼 `active_key`(ACTIVE 일 때 `region:type:deal`, 아니면 NULL)에 UNIQUE 부여. (data-model 참조)
+- 최종 방어선: **부분 유니크 인덱스** `UNIQUE(sigunguCode, propertyType, dealType) WHERE status='ACTIVE'`. MySQL 은 부분 인덱스 미지원 → 생성 컬럼 `active_key`(ACTIVE 일 때 `sigungu:type:deal`, 아니면 NULL)에 UNIQUE 부여. (data-model 참조)
+- 후보의 `dataStatus` 를 신규 ACTIVE 기준에 상속한다(INSUFFICIENT_DATA 포함). 소표본 승인은 422 로 막지 않고 flag 로 표시해 검증 단계에서 REVIEW_REQUIRED 로 처리(D4).
 
 ### D4. 자동 검증 엔진 (FR-040~045)
 - `VerificationRule` 인터페이스 목록을 순회하며 `List<Reason>` 누적 → riskLevel 산정기(RiskScorer)가 종합.
