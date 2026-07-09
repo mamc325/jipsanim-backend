@@ -34,6 +34,9 @@ dependencies {
 	annotationProcessor("jakarta.annotation:jakarta.annotation-api")
 	annotationProcessor("jakarta.persistence:jakarta.persistence-api")
 
+	// 국토부 실거래가 XML 응답 파싱
+	implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-xml")
+
 	// API 문서 자동 생성
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9")
 
