@@ -9,7 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 
-public interface PropertyRepository extends JpaRepository<Property, Long> {
+public interface PropertyRepository extends JpaRepository<Property, Long>, PropertySearchRepository {
 
     @EntityGraph(attributePaths = {"images", "realtor"})
     Optional<Property> findWithImagesById(Long id);
