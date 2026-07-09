@@ -37,7 +37,7 @@ public class PriceStandardCandidateService {
 
     @Transactional
     public CandidateApprovalResponse approve(Long candidateId, Long adminUserId) {
-        PriceStandardCandidate candidate = candidateRepository.findById(candidateId)
+        PriceStandardCandidate candidate = candidateRepository.findByIdForUpdate(candidateId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
         candidate.approve(adminUserId); // 멱등: PENDING 아니면 ALREADY_REVIEWED
 
@@ -62,7 +62,7 @@ public class PriceStandardCandidateService {
 
     @Transactional
     public void reject(Long candidateId, Long adminUserId) {
-        PriceStandardCandidate candidate = candidateRepository.findById(candidateId)
+        PriceStandardCandidate candidate = candidateRepository.findByIdForUpdate(candidateId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
         candidate.reject(adminUserId);
     }
