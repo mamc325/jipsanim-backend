@@ -105,7 +105,7 @@ public class RealEstateClient {
         long deposit = parseWon(item.deposit());
         long monthlyRent = parseWon(item.monthlyRent());
         DealType dealType = monthlyRent == 0 ? DealType.JEONSE : DealType.MONTHLY_RENT;
-        return new OfficetelRentTransaction(item.sggCd(), dealType, deposit, monthlyRent,
+        return new OfficetelRentTransaction(item.sggCd(), item.sggNm(), dealType, deposit, monthlyRent,
                 parseArea(item.excluUseAr()),
                 item.dealYear() != null ? item.dealYear() : 0,
                 item.dealMonth() != null ? item.dealMonth() : 0);
