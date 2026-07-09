@@ -32,6 +32,7 @@ public record OffiRentApiResponse(Header header, Body body) {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Item(
             String sggCd,
+            String sggNm,
             String umdNm,
             String offiNm,
             String deposit,
