@@ -159,6 +159,29 @@ public class Property extends BaseTimeEntity {
         this.status = PropertyStatus.DELETED;
     }
 
+    /** 검증 요청: DRAFT → PENDING, 자동 검증 결과 반영. */
+    public void submit(VerificationStatus verificationStatus, RiskLevel riskLevel) {
+        this.status = PropertyStatus.PENDING;
+        this.verificationStatus = verificationStatus;
+        this.riskLevel = riskLevel;
+    }
+
+    /** 관리자 승인: → ACTIVE */
+    public void approve() {
+        this.status = PropertyStatus.ACTIVE;
+        this.verificationStatus = VerificationStatus.APPROVED;
+    }
+
+    /** 관리자 반려: → REJECTED */
+    public void reject() {
+        this.status = PropertyStatus.REJECTED;
+        this.verificationStatus = VerificationStatus.REJECTED;
+    }
+
+    public boolean isDraft() {
+        return status == PropertyStatus.DRAFT;
+    }
+
     public boolean isOwnedBy(Long realtorId) {
         return realtor != null && realtor.getId().equals(realtorId);
     }
