@@ -9,6 +9,7 @@ import java.math.BigDecimal;
  */
 public record OfficetelRentTransaction(
         String sigunguCode,
+        String regionName,
         DealType dealType,
         long deposit,
         long monthlyRent,
