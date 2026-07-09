@@ -88,4 +88,32 @@ public class ExternalApiCallLog {
     public ApiType getApiType() {
         return apiType;
     }
+
+    public String getRequestUrl() {
+        return requestUrl;
+    }
+
+    public String getRequestParams() {
+        return requestParams;
+    }
+
+    public Integer getResponseStatus() {
+        return responseStatus;
+    }
+
+    public String getErrorMessage() {
+        return errorMessage;
+    }
+
+    public Integer getElapsedTimeMs() {
+        return elapsedTimeMs;
+    }
+
+    public Long getBatchJobId() {
+        return batchJobId;
+    }
+
+    public LocalDateTime getCalledAt() {
+        return calledAt;
+    }
 }
