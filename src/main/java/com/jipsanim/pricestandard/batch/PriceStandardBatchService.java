@@ -2,6 +2,7 @@ package com.jipsanim.pricestandard.batch;
 
 import com.jipsanim.external.molit.OfficetelRentTransaction;
 import com.jipsanim.external.molit.RealEstateClient;
+import com.jipsanim.pricestandard.candidate.PriceStandardCandidateGenerator;
 import com.jipsanim.pricestandard.config.PriceStandardProperties;
 import com.jipsanim.pricestandard.domain.PriceStandardBatchJob;
 import com.jipsanim.pricestandard.repository.PriceStandardBatchJobRepository;
@@ -33,13 +34,16 @@ public class PriceStandardBatchService {
 
     private final RealEstateClient realEstateClient;
     private final PriceStandardBatchJobRepository batchJobRepository;
+    private final PriceStandardCandidateGenerator candidateGenerator;
     private final PriceStandardProperties properties;
 
     public PriceStandardBatchService(RealEstateClient realEstateClient,
                                      PriceStandardBatchJobRepository batchJobRepository,
+                                     PriceStandardCandidateGenerator candidateGenerator,
                                      PriceStandardProperties properties) {
         this.realEstateClient = realEstateClient;
         this.batchJobRepository = batchJobRepository;
+        this.candidateGenerator = candidateGenerator;
         this.properties = properties;
     }
 
@@ -68,8 +72,14 @@ public class PriceStandardBatchService {
 
         job.complete(targets.size(), success, fail);
         batchJobRepository.save(job);
-        log.info("price standard batch done: job={} total={} success={} fail={} tx={}",
-                job.getId(), targets.size(), success, fail, transactions.size());
+
+        int candidates = 0;
+        if (!transactions.isEmpty()) {
+            // 수집 표본으로 시세 후보 생성 (calculatedMonth = 작업월)
+            candidates = candidateGenerator.generate(transactions, YearMonth.now().toString(), job.getId());
+        }
+        log.info("price standard batch done: job={} total={} success={} fail={} tx={} candidates={}",
+                job.getId(), targets.size(), success, fail, transactions.size(), candidates);
 
         return new BatchCollectResult(job.getId(), job.getStatus(), targets.size(), success, fail, transactions);
     }
