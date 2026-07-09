@@ -62,8 +62,19 @@ dependencies {
 	testAnnotationProcessor("org.projectlombok:lombok")
 }
 
-tasks.withType<Test> {
-	useJUnitPlatform()
+tasks.named<Test>("test") {
+	// 일반 테스트에서는 부하테스트(@Tag("load")) 제외
+	useJUnitPlatform { excludeTags("load") }
+}
+
+// ./gradlew loadTest — 부하/벤치마크만 실행
+tasks.register<Test>("loadTest") {
+	useJUnitPlatform { includeTags("load") }
+	testClassesDirs = sourceSets["test"].output.classesDirs
+	classpath = sourceSets["test"].runtimeClasspath
+	maxHeapSize = "1g"
+	testLogging { showStandardStreams = true }
+	outputs.upToDateWhen { false }
 }
 
 // QueryDSL Q타입 생성 위치를 build 디렉터리로 지정
