@@ -7,6 +7,8 @@ import com.jipsanim.property.dto.PropertyDetailResponse;
 import com.jipsanim.property.dto.PropertyMutationResponse;
 import com.jipsanim.property.dto.PropertyUpdateRequest;
 import com.jipsanim.property.service.PropertyService;
+import com.jipsanim.property.verification.dto.SubmissionResponse;
+import com.jipsanim.property.verification.service.PropertyVerificationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -26,9 +28,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class PropertyController {
 
     private final PropertyService propertyService;
+    private final PropertyVerificationService verificationService;
 
-    public PropertyController(PropertyService propertyService) {
+    public PropertyController(PropertyService propertyService,
+                             PropertyVerificationService verificationService) {
         this.propertyService = propertyService;
+        this.verificationService = verificationService;
     }
 
     @PostMapping
@@ -47,6 +52,14 @@ public class PropertyController {
             @PathVariable Long propertyId,
             @Valid @RequestBody PropertyUpdateRequest request) {
         return ApiResponse.success(propertyService.update(authUser.userId(), propertyId, request));
+    }
+
+    @PostMapping("/{propertyId}/submission")
+    @PreAuthorize("hasRole('REALTOR')")
+    public ApiResponse<SubmissionResponse> submit(
+            @AuthenticationPrincipal AuthUser authUser,
+            @PathVariable Long propertyId) {
+        return ApiResponse.success(verificationService.submit(authUser.userId(), propertyId));
     }
 
     @DeleteMapping("/{propertyId}")
