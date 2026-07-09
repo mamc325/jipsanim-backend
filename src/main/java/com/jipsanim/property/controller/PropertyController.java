@@ -5,11 +5,17 @@ import com.jipsanim.common.security.AuthUser;
 import com.jipsanim.property.dto.PropertyCreateRequest;
 import com.jipsanim.property.dto.PropertyDetailResponse;
 import com.jipsanim.property.dto.PropertyMutationResponse;
+import com.jipsanim.property.dto.PropertySearchCondition;
+import com.jipsanim.property.dto.PropertySummaryResponse;
 import com.jipsanim.property.dto.PropertyUpdateRequest;
+import com.jipsanim.property.repository.PropertyRepository;
 import com.jipsanim.property.service.PropertyService;
 import com.jipsanim.property.verification.dto.SubmissionResponse;
 import com.jipsanim.property.verification.service.PropertyVerificationService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -29,11 +35,21 @@ public class PropertyController {
 
     private final PropertyService propertyService;
     private final PropertyVerificationService verificationService;
+    private final PropertyRepository propertyRepository;
 
     public PropertyController(PropertyService propertyService,
-                             PropertyVerificationService verificationService) {
+                             PropertyVerificationService verificationService,
+                             PropertyRepository propertyRepository) {
         this.propertyService = propertyService;
         this.verificationService = verificationService;
+        this.propertyRepository = propertyRepository;
+    }
+
+    @GetMapping
+    public ApiResponse<Page<PropertySummaryResponse>> search(
+            PropertySearchCondition condition,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ApiResponse.success(propertyRepository.search(condition, pageable));
     }
 
     @PostMapping
