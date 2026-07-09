@@ -9,6 +9,9 @@ spring:
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:root}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      # 부하테스트로 기본 10에서 상향(고동시성 커넥션 대기 완화). 측정 근거: docs/load-test-results.md
+      maximum-pool-size: ${DB_POOL_SIZE:30}
   jpa:
     hibernate:
       # MVP 개발 단계: update. 스키마 안정화 후 validate + Flyway 전환 예정.
