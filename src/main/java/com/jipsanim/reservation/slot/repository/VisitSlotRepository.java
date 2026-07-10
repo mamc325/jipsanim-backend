@@ -1,17 +1,25 @@
 package com.jipsanim.reservation.slot.repository;
 
 import com.jipsanim.reservation.slot.domain.VisitSlot;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface VisitSlotRepository extends JpaRepository<VisitSlot, Long> {
 
     List<VisitSlot> findByPropertyIdOrderByStartTimeAsc(Long propertyId);
+
+    /** 확정 시 슬롯 잠금 (락 순서 Payment→Reservation→VisitSlot) */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select v from VisitSlot v where v.id = :id")
+    Optional<VisitSlot> findByIdForUpdate(@Param("id") Long id);
 
     /** 시간 겹침(점유 상태 OPEN/RESERVED)과 교차하는 슬롯 존재 여부 */
     @Query("select count(v) > 0 from VisitSlot v "
