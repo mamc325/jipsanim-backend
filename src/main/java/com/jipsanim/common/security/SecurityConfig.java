@@ -45,8 +45,9 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_PATHS).permitAll()
-                        // 매물 상세/검색은 공개(비공개 상태 접근 제어는 서비스에서)
-                        .requestMatchers(HttpMethod.GET, "/api/properties", "/api/properties/*").permitAll()
+                        // 매물 상세/검색·방문슬롯 목록은 공개(비공개 상태 접근 제어는 서비스에서)
+                        .requestMatchers(HttpMethod.GET, "/api/properties", "/api/properties/*",
+                                "/api/properties/*/visit-slots").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
