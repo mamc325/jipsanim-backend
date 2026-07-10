@@ -54,9 +54,11 @@
 { "reservationId":11, "paymentId":9, "status":"PENDING_PAYMENT",
   "amount":10000, "expiresInSeconds":270 }
 ```
-- 조건: 유효 예약권(token) 소유자 + slot `OPEN`. Reservation(PENDING_PAYMENT, expires_at=now+TTL)+Payment(READY) 동시 생성.
+- 조건: 유효 예약권(token) 소유자 + slot `OPEN`.
+- **`expires_at` = now + 토큰 잔여시간(Redis `PTTL`)** — 발급 후 경과분을 반영(홀드가 5분 초과하지 않게). `expiresInSeconds`=잔여시간. `PTTL<=0` → 403(예약권 만료).
+- Reservation(PENDING_PAYMENT, expires_at) + Payment(READY) 동시 생성.
 - **멱등**(P1-1): 이미 이 사용자의 활성 PENDING_PAYMENT 예약이 있으면 신규 생성 없이 기존 것을 반환. `active_reservation_key` UNIQUE 로 슬롯당 활성 1건 최종 보장.
-- 403 `FORBIDDEN`(예약권 없음/불일치), 409 `INVALID_STATE`(slot 이 OPEN 아님).
+- 403 `FORBIDDEN`(예약권 없음/불일치/만료), 409 `INVALID_STATE`(slot 이 OPEN 아님).
 
 ### GET /api/me/reservations  [USER]
 ```json
@@ -89,7 +91,7 @@
 ```json
 // res 200 { "paymentId":9,"paymentStatus":"FAILED","reservationStatus":"EXPIRED" }
 ```
-- 처리: **소유자 검증**(payment.userId==auth, 아니면 403) → Payment READY→FAILED, Reservation→EXPIRED, **`releaseToken`(token만 삭제, 큐/active-set 유지)** → sweep/다음 폴링이 다음 대기자 발급. (slot 은 여전히 OPEN 이므로 큐 유지)
+- 처리: **소유자 검증**(payment.userId==auth, 아니면 403) → Payment READY→FAILED, Reservation→EXPIRED, **`releaseTokenIfOwner(slotId, userId)`**(token value==userId 일 때만 DEL, 큐/active-set 유지) → sweep/다음 폴링이 다음 대기자 발급. (slot 은 여전히 OPEN 이므로 큐 유지)
 
 ---
 
