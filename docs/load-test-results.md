@@ -1,13 +1,14 @@
-# 부하테스트 결과 (1차 MVP)
+# 부하테스트 결과
 
-`./gradlew loadTest` — Java 21 가상스레드/HttpClient 기반 벤치마크(`@Tag("load")`, 일반 `test`에서 제외).
-**측정 환경**: 로컬 단일 노드(Apple Silicon), MySQL 8(Docker), 임베디드 Tomcat, Testcontainers.
-→ 절대 수치가 아니라 **개선 전후 비교(baseline)** 목적. 프로덕션 수치 아님.
+**측정 환경**: 로컬 단일 노드(Apple Silicon), MySQL 8·Redis 7(Docker). → 절대 수치가 아니라 **개선 전후 비교/정합성 검증** 목적.
+- 1차: `./gradlew loadTest` (Java 21 가상스레드/HttpClient, `@Tag("load")`)
+- 2차: k6(Docker) — `loadtest/k6/reservation-queue.js`
 
-측정 대상 3종:
-1. 매물 조건 검색 처리량/지연 (100k ACTIVE 매물 시드)
-2. 동시 승인 정합성 (active_key/후보 상태 경쟁)
-3. 배치 병렬 수집 speedup (WebClient bounded concurrency)
+측정 대상:
+1. 매물 조건 검색 처리량/지연 (100k ACTIVE 매물 시드) — 1차
+2. 동시 승인 정합성 (active_key/후보 상태 경쟁) — 1차
+3. 배치 병렬 수집 speedup (WebClient bounded concurrency) — 1차
+4. **대기열 동시 500명 진입 → 슬롯당 1명 확정·중복 0** — 2차(k6)
 
 ---
 
@@ -64,6 +65,20 @@
 
 - `Flux.flatMap(fetch, concurrency=8)`가 순차 대비 **x8.1** 단축 → "비동기 병렬 수집" 실측 근거.
 
+## 5. 대기열 동시 500명 진입 (2차, k6)
+
+`loadtest/k6/reservation-queue.js` — 500 VU 가 **하나의 방문 슬롯에 동시에 대기열 진입**, 예약권 보유자만 예약→결제 확정.
+
+| 지표 | 결과 |
+| --- | --- |
+| 대기열 진입 응답 | **500/500 = 201** (checks 100%, 진입 실패 0) |
+| 예약 확정(reservation_confirmed) | **정확히 1** (`count>0 && count<2` 통과) → 슬롯당 1명, **중복 확정 0** |
+| 진입 p95 지연 | **364 ms** (500 동시) |
+| 처리 시간 | 500 진입 ~0.6s |
+
+- **원자적 Lua 발급 + `active_reservation_key` UNIQUE + 확정 시 비관적 락**이 결합돼, 500명 동시 진입에도 **예약권 1개·확정 1건**만 성립함을 실측.
+- sweep 스케줄러 활성 상태(프로덕션과 동일)에서 측정.
+
 ---
 
 ## 이력서용 측정 문장 (실측 기반)
@@ -71,10 +86,14 @@
 - 부하테스트로 **동시 승인 TOCTOU 경쟁을 발견**, 후보 행 비관적 락 적용으로 동시 50요청에서 **승인 1건·ACTIVE 1건 보장(중복 0)**
 - WebClient bounded concurrency로 16지역 수집을 **순차 대비 x8.1 단축(2747→339ms)**
 - 깊은 페이지네이션 분석으로 **count(\*) 쿼리 병목을 규명**, 인덱스 적용 필터 검색 x1.6 확인
+- Redis Sorted Set 대기열 + TTL 예약권으로 **동시 500명 진입 시 순번 정합성·중복 예약 0·확정 1건** 검증(k6, p95 364ms)
 
 ## 재현
 ```bash
 docker compose up -d
-./gradlew loadTest
-# 개별: ./gradlew loadTest --tests "com.jipsanim.loadtest.SearchLoadTest"
+./gradlew loadTest                      # 1차 벤치마크
+# 2차 대기열(k6): 앱 기동 후
+docker run --rm --add-host=host.docker.internal:host-gateway \
+  -e BASE_URL=http://host.docker.internal:8080 -e USERS=500 \
+  -v "$PWD/loadtest/k6:/scripts" grafana/k6 run /scripts/reservation-queue.js
 ```
