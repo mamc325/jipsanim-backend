@@ -70,19 +70,21 @@
 
 착수 차수에서 `specs/<차수>/contracts/` 로 확정. 아래 경로는 위 컨벤션을 잠정 적용한 예상안.
 
-### 2차 — 방문슬롯 / 대기열 / 예약 / Mock결제 (`specs/002-visit-reservation-queue`)
+### 2차 — 방문슬롯 / 대기열 / 예약 / Mock결제 (`specs/002-visit-reservation-queue`, **계약 확정**)
+정본: `specs/002-visit-reservation-queue/contracts/api-contract.md`
 | Method | Path | 권한 |
 | --- | --- | --- |
 | POST | `/api/properties/{id}/visit-slots` | REALTOR |
 | GET | `/api/properties/{id}/visit-slots` | PUBLIC |
-| DELETE | `/api/visit-slots/{id}` | REALTOR |
-| POST | `/api/visit-slots/{slotId}/waiting` | USER (대기열 진입=대기 엔트리 생성) |
-| GET | `/api/visit-slots/{slotId}/waiting/me` | USER (내 순번) |
-| POST | `/api/visit-slots/{slotId}/reservations` | USER (예약 생성) |
-| GET | `/api/me/reservations` | USER·REALTOR (역할별 뷰) |
-| POST | `/api/reservations/{id}/payments` | USER (결제 생성) |
-| POST | `/api/payments/{id}/confirmation` | USER (결제 확정) |
-| POST | `/api/payments/{id}/failure` | USER (결제 실패 처리) |
+| DELETE | `/api/visit-slots/{id}` | REALTOR (→CLOSED) |
+| POST | `/api/visit-slots/{slotId}/waiting` | USER (대기열 진입 + tryIssue) |
+| GET | `/api/visit-slots/{slotId}/waiting/me` | USER (순번/예약권 + tryIssue) |
+| POST | `/api/visit-slots/{slotId}/reservations` | USER (예약 생성 **+ Payment(READY) 동시 생성**) |
+| GET | `/api/me/reservations` | USER |
+| POST | `/api/payments/{id}/confirmation` | USER (결제 확정 → 예약 CONFIRMED, slot RESERVED) |
+| POST | `/api/payments/{id}/failure` | USER (결제 실패 → 예약 EXPIRED, 슬롯 반환) |
+
+> 결정 §6-3: 결제는 예약 생성 시 동시 생성 → **별도 `POST /reservations/{id}/payments` 없음.**
 
 ### 3차 — 예약취소 / 환불 / 정산
 | Method | Path | 권한 |
