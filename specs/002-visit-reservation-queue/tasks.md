@@ -19,7 +19,7 @@
 - [ ] T222 슬롯 컨트롤러/서비스: POST/GET/DELETE(RESERVED 거부 409, OPEN→CLOSED + cleanupSlot + PENDING 정리, P1-4)
 
 ## Phase 3. 대기열 API + 발급 트리거
-- [ ] T230 [P] 테스트: 진입/순번 조회 시 tryIssue, 중복 진입 409, 선두 tokenGranted
+- [ ] T230 [P] 테스트: 진입/순번 조회 시 tryIssue, 큐 중복 진입 409(ALREADY_WAITING), **토큰 보유자 재진입 409(ALREADY_GRANTED)**, 선두 tokenGranted/position=0
 - [ ] T231 `POST /visit-slots/{id}/waiting`(진입+tryIssue), `GET .../waiting/me`(순번+tryIssue+TTL)
 
 ## Phase 4. 예약 생성
@@ -31,7 +31,9 @@
 ## Phase 5. 결제 확정/실패
 - [ ] T250 [P] 테스트: 소유자 검증(403), **멱등 재시도 시 토큰 삭제됐어도 200**(P1-b), 확정 트랜잭션(PAID+CONFIRMED+RESERVED+cleanupSlot), 동시 확정 1건, 만료 시 409
 - [ ] T251 `POST /payments/{id}/confirmation`: 잠금→소유자검증→**이미 PAID면 현재상태 반환**→READY면 토큰검증→만료검사→트랜잭션→cleanupSlot (plan D3, P1-b/P2-2/P2-3)
+      - **잠금 조회~상태변경~커밋까지 동일 `@Transactional` 범위**(PESSIMISTIC_WRITE 유효 구간 보장)
 - [ ] T252 `POST /payments/{id}/failure`: 소유자검증→FAILED+Reservation EXPIRED+**releaseToken(큐 유지)**
+      - (선택) releaseToken 직후 `tryIssueIfSlotOpen(slotId)` 즉시 호출로 다음 대기자 발급 응답성↑ (미호출 시 sweep/폴링이 처리)
 
 ## Phase 6. 만료 재발급 (sweep)
 - [ ] T260 [P] 테스트: 토큰 만료 후 **PENDING 정리(EXPIRED)가 먼저 → 다음 대기자 예약 409 안 남**(P2), slot OPEN 유지
