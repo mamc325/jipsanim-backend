@@ -97,6 +97,11 @@ public class WaitingQueueService {
         return size == null || size == 0;
     }
 
+    /** sweep: 큐/토큰이 모두 빈 슬롯을 sweep 대상에서 제외(토큰/큐는 건드리지 않음) */
+    public void removeActiveSlot(Long slotId) {
+        redis.opsForSet().remove(ACTIVE_SLOTS, str(slotId));
+    }
+
     /** sweep 대상 슬롯 집합. */
     public Set<Long> activeSlots() {
         Set<String> members = redis.opsForSet().members(ACTIVE_SLOTS);
