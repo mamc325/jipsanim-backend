@@ -1,0 +1,53 @@
+# Tasks: 방문 예약 대기열 (2차)
+
+규칙: `[P]` 병렬 가능. 핵심 상태전이/원자성은 테스트 먼저. 브랜치 `feat/002-p<phase>-*`.
+
+## Phase 0. 인프라
+- [ ] T200 `docker-compose.yml` 에 `redis:7` 추가(포트 6379, healthcheck)
+- [ ] T201 `spring-boot-starter-data-redis` 의존성 + `spring.data.redis.*` 설정(로컬/Testcontainers)
+- [ ] T202 [P] `application.yml`: `reservation.token-ttl-seconds=300`, `sweep-interval-ms=2000`, `fee-amount`
+- [ ] T203 [P] Testcontainers 에 Redis 컨테이너 추가(@ServiceConnection)
+- [ ] T204 ErrorCode 2차 코드 추가(ALREADY_WAITING/ALREADY_GRANTED/CONFLICT) + **GlobalExceptionHandler: DataIntegrityViolation → 중립 `CONFLICT`(409)** 로 변경(현재 ALREADY_REVIEWED 고정 수정, 항목 7). 1차 회귀 확인
+
+## Phase 1. 대기열 + 예약권 (Redis)
+- [ ] T210 [P] 테스트: Lua `tryIssue` — 토큰 있으면 no-op, 빈 큐 no-op, 선두 발급, 동시성 하 슬롯당 1개
+- [ ] T211 `RedisConfig`(StringRedisTemplate, DefaultRedisScript<Lua>)
+- [ ] T212 `WaitingQueueService`: enqueue(**score=`INCR waiting:seq`**, 강한 FIFO)/rank/tryIssue(Lua)/`tryIssueIfSlotOpen`(slot OPEN 가드, P1-3)/hasToken/`tokenPttl`(잔여 TTL) + **정리 2종**: `releaseTokenIfOwner(slotId,userId)`(Lua GET==userId→DEL, 큐 유지) / `cleanupSlot`(무조건 — 확정/마감) + `waiting:slots` 관리 (Refs: T210, plan D1)
+
+## Phase 2. 방문 슬롯
+- [ ] T220 `VisitSlot` 엔티티(status OPEN/RESERVED/CLOSED/EXPIRED) + 리포지토리(UNIQUE property_id+start_time)
+- [ ] T221 [P] 테스트: 슬롯 CRUD 소유자/상태 제약(RESERVED 마감 불가), **생성 검증(비ACTIVE 매물 409, 과거/역전 시간 409, 시간 겹침 409)** (항목 6)
+- [ ] T222 슬롯 컨트롤러/서비스: POST(**검증: ACTIVE 매물·미래·start<end·겹침 금지**, 항목 6)/GET/DELETE — RESERVED 거부 409; OPEN→**조건부 update로 CLOSED 커밋**(WHERE status=OPEN)+cleanupSlot, **PENDING 정리는 별도 tx·공통 락 순서**(락 역순 방지, 리뷰-3)
+
+## Phase 3. 대기열 API + 발급 트리거
+- [ ] T230 [P] 테스트: 진입/순번 조회 시 tryIssue, 큐 중복 진입 409(ALREADY_WAITING), **토큰 보유자 재진입 409(ALREADY_GRANTED)**, 선두 tokenGranted/position=0
+- [ ] T231 `POST /visit-slots/{id}/waiting`(진입+tryIssue), `GET .../waiting/me`(순번+tryIssue+TTL)
+
+## Phase 4. 예약 생성
+- [ ] T240 [P] 테스트: 토큰 보유자만 예약, slot OPEN 아니면 409, 동일 사용자 반복 호출 시 기존 반환(멱등, P1-1)
+- [ ] T241 `Reservation`(+`active_reservation_key` UNIQUE, `expires_at`)/`Payment`(reservation_id UNIQUE) 엔티티 + 리포지토리
+- [ ] T242 `POST /visit-slots/{id}/reservations`: 토큰 검증 + **PTTL(≤0→403)** → (멱등) 기존 활성 PENDING 반환 or Reservation(PENDING, `expires_at=now+잔여TTL`)+Payment(READY). **active_reservation_key 충돌 시 만료 PENDING 정리 후 1회 재시도**(리뷰-2) (plan D2)
+- [ ] T243 `GET /me/reservations`
+
+## Phase 5. 결제 확정/실패
+- [ ] T250 [P] 테스트: 소유자 검증(403), **멱등 재시도 토큰 삭제돼도 200**(P1-b), 확정(PAID+CONFIRMED+RESERVED+cleanupSlot), 동시 확정 1건, **confirm 만료 시 EXPIRED+FAILED+releaseToken 후 409**(항목 3), **failure 멱등: FAILED 재호출 200 / PAID 이후 409**(항목 4)
+- [ ] T251 `POST /payments/{id}/confirmation`: 잠금→소유자검증→**이미 PAID면 현재상태 반환**→READY면 토큰검증→만료검사→트랜잭션→cleanupSlot (plan D3, P1-b/P2-2/P2-3)
+      - **하나의 `@Transactional`**(잠금~커밋 동일 범위), **락 순서 `Payment→Reservation→VisitSlot`**(sweep 과 동일, 리뷰-3)
+- [ ] T252 `POST /payments/{id}/failure`: 소유자검증→**락 Payment→Reservation 후 재확인(PAID면 skip)**→FAILED+Reservation EXPIRED+**releaseTokenIfOwner(큐 유지)** (리뷰-3)
+      - (선택) 직후 `tryIssueIfSlotOpen(slotId)` 즉시 호출로 다음 대기자 발급 응답성↑ (미호출 시 sweep/폴링이 처리)
+
+## Phase 6. 만료 재발급 (sweep)
+- [ ] T260 [P] 테스트: 토큰 만료 후 **PENDING 정리(EXPIRED)가 먼저 → 다음 대기자 예약 409 안 남**(P2), slot OPEN 유지
+- [ ] T261 `TokenSweepScheduler`(2초) — 순서: ①만료 후보 **락(Payment→Reservation→VisitSlot) 후 재확인, PAID/CONFIRMED면 skip** else EXPIRED+Payment FAILED ②slot OPEN 확인 ③tryIssueIfSlotOpen ④빈 큐 active-set 제거 (plan D1, 리뷰-3)
+- [ ] T262 [P] 테스트: **만료 경계에서 confirm/sweep 동시 실행 → PAID+CONFIRMED 와 EXPIRED 가 동시에 발생하지 않음**(둘 중 하나만) (리뷰-3)
+
+## Phase 7. 통합 + k6 부하
+- [ ] T270 통합(Testcontainers MySQL+Redis): 진입→발급→예약→확정→RESERVED, 만료 재발급, 중복예약 방지
+- [ ] T271 k6 `loadtest/k6/reservation-queue.js`: 동시 500명 진입 → 순번 정합·확정 1건·중복 0·에러율
+- [ ] T272 [P] 인수기준(spec §4) 체크, docs/load-test-results 에 대기열 수치 추가
+
+## 의존성
+```
+Phase0 인프라 → Phase1 큐(Lua) → Phase2 슬롯 → Phase3 대기열API
+                                              → Phase4 예약 → Phase5 결제확정 → Phase6 sweep → Phase7 통합/부하
+```
