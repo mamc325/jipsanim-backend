@@ -60,6 +60,15 @@ public class VisitSlot extends BaseTimeEntity {
         return status == VisitSlotStatus.RESERVED;
     }
 
+    public boolean isOpen() {
+        return status == VisitSlotStatus.OPEN;
+    }
+
+    /** 결제 확정 시 OPEN→RESERVED */
+    public void reserve() {
+        this.status = VisitSlotStatus.RESERVED;
+    }
+
     public boolean isOwnedBy(Long realtorId) {
         return property != null && property.getRealtor().getId().equals(realtorId);
     }
