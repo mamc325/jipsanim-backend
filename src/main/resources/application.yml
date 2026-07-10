@@ -12,6 +12,10 @@ spring:
     hikari:
       # 부하테스트로 기본 10에서 상향(고동시성 커넥션 대기 완화). 측정 근거: docs/load-test-results.md
       maximum-pool-size: ${DB_POOL_SIZE:30}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   jpa:
     hibernate:
       # MVP 개발 단계: update. 스키마 안정화 후 validate + Flyway 전환 예정.
@@ -45,6 +49,11 @@ price-standard:
   webclient-concurrency: ${WEBCLIENT_CONCURRENCY:8}
   # 범위 계산 방식: PERCENTILE | IQR
   calc-method: ${PRICE_CALC_METHOD:IQR}
+
+reservation:
+  token-ttl-seconds: ${RESERVATION_TOKEN_TTL:300}   # 예약권 TTL(5분)
+  sweep-interval-ms: ${RESERVATION_SWEEP_MS:2000}    # 만료 재발급 sweep 주기
+  fee-amount: ${RESERVATION_FEE:10000}               # Mock 결제 금액(원)
 
 springdoc:
   swagger-ui:

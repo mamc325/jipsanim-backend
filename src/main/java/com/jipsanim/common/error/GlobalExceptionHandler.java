@@ -39,13 +39,13 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR, message));
     }
 
-    // 동시 승인 등에서 유니크 제약(active_key) 위반 → 500 대신 409로 (경쟁에서 밀린 요청)
+    // 유니크 제약(active_key/active_reservation_key 등) 위반 → 500 대신 중립 409 CONFLICT (경쟁에서 밀린 요청)
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponse<Void>> handleDataIntegrity(DataIntegrityViolationException e) {
         log.warn("data integrity violation (treated as conflict): {}",
                 e.getMostSpecificCause().getMessage());
-        return ResponseEntity.status(ErrorCode.ALREADY_REVIEWED.httpStatus())
-                .body(ApiResponse.error(ErrorCode.ALREADY_REVIEWED));
+        return ResponseEntity.status(ErrorCode.CONFLICT.httpStatus())
+                .body(ApiResponse.error(ErrorCode.CONFLICT));
     }
 
     // @PreAuthorize 등 메서드 보안 거부는 컨트롤러 어드바이스로 전파되므로 여기서 403 처리
