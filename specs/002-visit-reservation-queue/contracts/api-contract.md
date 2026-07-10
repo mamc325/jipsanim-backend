@@ -75,15 +75,21 @@
 { "paymentId":9,"reservationId":11,"paymentStatus":"PAID",
   "reservationStatus":"CONFIRMED","visitSlotStatus":"RESERVED" }
 ```
-- 처리: **소유자 검증**(payment.userId==auth) → Payment PESSIMISTIC_WRITE 잠금 → 만료검사(expires_at) → 트랜잭션(Payment READY→PAID, Reservation→CONFIRMED, slot OPEN→RESERVED, `active_reservation_key` UNIQUE) → 커밋 후 토큰/큐/active-set 삭제.
-- 멱등: 이미 PAID/CONFIRMED 면 현재 상태 반환.
-- 403 `FORBIDDEN`(**결제 소유자 아님** / 토큰 불일치), 409 `INVALID_STATE`(READY 아님 / 만료), 409 `CONFLICT`(확정 경쟁 실패, `active_reservation_key` 위반).
+- 처리 순서(멱등 재시도 시 토큰 이미 삭제돼도 403 안 나게):
+  1. Payment PESSIMISTIC_WRITE 잠금 조회
+  2. 소유자 검증(payment.userId==auth, 아니면 403)
+  3. **이미 PAID/CONFIRMED → 토큰 검사 없이 현재 상태 반환**(멱등)
+  4. READY 일 때만 토큰 소유자 검증
+  5. 만료검사(expires_at)
+  6. 트랜잭션(Payment READY→PAID, Reservation→CONFIRMED, slot OPEN→RESERVED, `active_reservation_key` UNIQUE)
+  7. 커밋 후 `cleanupSlot`(확정이므로 토큰·큐·active-set 삭제)
+- 403 `FORBIDDEN`(결제 소유자 아님 / 토큰 불일치), 409 `INVALID_STATE`(READY 아님 / 만료), 409 `CONFLICT`(확정 경쟁 실패).
 
 ### POST /api/payments/{paymentId}/failure  [USER]  → 결제 실패(슬롯 반환)
 ```json
 // res 200 { "paymentId":9,"paymentStatus":"FAILED","reservationStatus":"EXPIRED" }
 ```
-- 처리: **소유자 검증**(payment.userId==auth, 아니면 403) → Payment READY→FAILED, Reservation→EXPIRED, Redis 토큰·큐·active-set 삭제 → sweep 이 다음 대기자 발급.
+- 처리: **소유자 검증**(payment.userId==auth, 아니면 403) → Payment READY→FAILED, Reservation→EXPIRED, **`releaseToken`(token만 삭제, 큐/active-set 유지)** → sweep/다음 폴링이 다음 대기자 발급. (slot 은 여전히 OPEN 이므로 큐 유지)
 
 ---
 
