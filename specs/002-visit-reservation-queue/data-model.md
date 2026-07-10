@@ -11,8 +11,9 @@ PaymentStatus      : READY, PAID, FAILED               (CANCELLED/REFUNDED 는 3
 
 ## Redis 키 (정본은 plan.md)
 ```
-waiting:visit-slot:{slotId}  ZSET  member=userId, score=timestamp(ms)
+waiting:visit-slot:{slotId}  ZSET  member=userId, score=INCR waiting:seq (강한 FIFO)
 waiting:slots                SET   sweep 대상 slotId
+waiting:seq                  STR   INCR 진입 순번(전역 단조 증가)
 reservation-token:{slotId}   STR   value=userId, TTL=300s (슬롯당 1개)
 ```
 
