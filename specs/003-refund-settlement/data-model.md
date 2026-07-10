@@ -32,16 +32,17 @@ Index: `(realtor_id, refunded_at)` 정산 집계용.
 | settlement_month | VARCHAR(7) | YYYY-MM |
 | total_payment_amount | BIGINT | paidAt 이 해당 월인 결제 합 |
 | total_refund_amount | BIGINT | refundedAt 이 해당 월인 환불 합 |
-| net_amount | BIGINT | total_payment - total_refund |
-| platform_fee | BIGINT | net>0 ? round(net*0.2) : 0 |
+| net_amount | BIGINT | total_payment - total_refund (참고 지표) |
 | carry_over_in | BIGINT | 전월 이월 차감액(≥0) |
-| carry_over_out | BIGINT | 당월 발생 이월액(≥0) → 다음 달 carry_over_in |
-| payout_amount | BIGINT | max(0, net - fee - carry_over_in) |
+| platform_fee | BIGINT | `gross>0 ? floor(gross*0.20) : 0` (gross=결제-환불-carry_in) |
+| carry_over_out | BIGINT | `max(0, -gross)` → 다음 달 carry_over_in |
+| payout_amount | BIGINT | `max(0, gross - platform_fee)` |
 | status | VARCHAR(20) | SettlementStatus, default PENDING |
 | created_at / updated_at | DATETIME(6) | |
 
 - **UNIQUE(realtor_id, settlement_month)** → 월별 중복 정산 방지.
 - Index: `(status)`, `(settlement_month)`.
+- **계산식 정본은 spec §3** (이월 먼저 차감 후 수수료, floor 절사). 위 컬럼 설명은 그 요약.
 
 ## 3. 기존 엔티티 변경
 - **payment**: `PaymentStatus.REFUNDED` 추가. `refund()`는 **PAID→REFUNDED 만 허용, paidAt 유지**(정산이 paidAt 에 의존, 리뷰 P1). REFUNDED 상태에서 `/failure` 요청은 **409**(리뷰 P0-5).

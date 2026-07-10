@@ -41,7 +41,8 @@ carry_over_out  = max(0, -gross_available)  // 음수면 다음 달로 이월
 net_amount      = total_payment - total_refund   // 기록용(참고 지표)
 ```
 - **UNIQUE(realtor_id, settlement_month)** → 월별 중복 정산 방지.
-- **과거 월 재정산 정책(리뷰 P0-2)**: 대상 월보다 **이후 월 정산이 이미 존재하면 재계산 금지(409)** — carry_over 연쇄 갱신 회피(단순 정책 채택). 대상 월 정산이 PENDING 이고 이후 월이 없으면 재계산 갱신.
+- **과거 월 재정산 정책(리뷰 P0-2)**: 재계산 금지는 **realtor 단위**로 판정한다 — *같은 realtor* 에게 대상 월보다 이후 월 settlement 가 존재하면 그 realtor 의 대상 월 재계산을 금지(carry_over 연쇄 갱신 회피). 대상 월 정산이 PENDING 이고 같은 realtor 의 이후 월이 없으면 재계산 갱신.
+- **배치 실패 단위(단순 정책)**: 수동 배치에서 대상 realtor 중 **하나라도** 위 조건에 걸리면 **전체 요청을 409 로 실패**(부분 성공/blockedCount 미도입). 부분 성공이 필요해지면 그때 `blockedCount` 를 응답에 추가한다.
 
 ## 4. 상태 전이
 ```

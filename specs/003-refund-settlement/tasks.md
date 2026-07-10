@@ -17,9 +17,9 @@
 - [ ] T320 [P] 테스트: `SettlementCalculator` — **이월 먼저 차감 후 수수료**(carry_over 갚는 달 과다수수료 없음, P0-1), floor 절사, 음수→carry_over_out, **월 경계(7월 결제→8월 환불)**
 - [ ] T321 `SettlementCalculator`(순수함수) — §3: `gross_available=결제-환불-carry_in`, `fee=floor(gross>0? gross*0.2:0)`, `payout=max(0,gross-fee)`, `carry_out=max(0,-gross)`
 - [ ] T322 집계 쿼리(결제 paidAt·환불 refundedAt 중개사별 합) + 전월 carry_over_out 조회
-- [ ] T323 `SettlementBatchService.run(month)`(주입 Clock): 집계→계산→Settlement(PENDING) upsert. **이후 월 존재 시 409**, PENDING 재계산 갱신, CONFIRMED/PAID skip (P0-2)
+- [ ] T323 `SettlementBatchService.run(month)`(주입 Clock): 집계→**선검사(realtor별 이후월 존재→하나라도면 전체 409)**→계산→Settlement(PENDING) upsert. PENDING 재계산 갱신, CONFIRMED/PAID skip (P0-2)
 - [ ] T324 스케줄러(매월 1일 04:00, 테스트 비활성) + `POST /admin/settlement-batch-jobs`(**동기 200** + createdCount/updatedCount/skippedCount, P0-3)
-- [ ] T325 [P] 테스트: 배치 UNIQUE 중복정산 0, PENDING 재계산·이후월 409, 이월 반영
+- [ ] T325 [P] 테스트: 배치 UNIQUE 중복정산 0, PENDING 재계산, **같은 realtor 이후월 존재→전체 409**(부분성공 없음), 이월 반영
 
 ## Phase 4. 정산 조회/확정/지급
 - [ ] T330 `GET /me/settlements`(REALTOR), `GET /admin/settlements`(ADMIN, month/realtor 필터)

@@ -41,7 +41,8 @@
 // res 200 { "month":"2026-07", "createdCount":12, "updatedCount":0, "skippedCount":1 }
 ```
 - 동기 실행 후 결과 반환(별도 job 엔티티 없음). 결제(paidAt)·환불(refundedAt) 집계 → Settlement(PENDING) upsert.
-- PENDING 재계산 갱신, CONFIRMED/PAID skip. **대상 월보다 이후 월 정산 존재 시 409**(carry_over 연쇄 방지).
+- PENDING 재계산 갱신, CONFIRMED/PAID skip.
+- **이후 월 존재 검사(realtor 단위)**: *같은 realtor* 에게 대상 월보다 이후 월 정산이 존재하면 그 realtor 재계산 금지. 대상 realtor 중 **하나라도** 걸리면 **전체 요청 409**(부분 성공 없음).
 
 ### GET /api/admin/settlements?month=2026-07&realtorId=5&page=0  [ADMIN]
 ```json
