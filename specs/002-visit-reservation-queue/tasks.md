@@ -16,7 +16,7 @@
 ## Phase 2. 방문 슬롯
 - [ ] T220 `VisitSlot` 엔티티(status OPEN/RESERVED/CLOSED/EXPIRED) + 리포지토리(UNIQUE property_id+start_time)
 - [ ] T221 [P] 테스트: 슬롯 CRUD 소유자/상태 제약(RESERVED 마감 불가)
-- [ ] T222 슬롯 컨트롤러/서비스: POST/GET/DELETE(RESERVED 거부 409, OPEN→CLOSED + cleanupSlotRedis + PENDING 정리, P1-4)
+- [ ] T222 슬롯 컨트롤러/서비스: POST/GET/DELETE(RESERVED 거부 409, OPEN→CLOSED + cleanupSlot + PENDING 정리, P1-4)
 
 ## Phase 3. 대기열 API + 발급 트리거
 - [ ] T230 [P] 테스트: 진입/순번 조회 시 tryIssue, 중복 진입 409, 선두 tokenGranted
