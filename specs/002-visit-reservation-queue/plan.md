@@ -23,9 +23,10 @@ HELD 는 MySQL 에 두지 않고 Redis 토큰 존재로 파생(§6-2). Redis↔M
 
 ## Redis 설계
 ```
-대기열   ZSET  waiting:visit-slot:{slotId}   member=userId, score=요청 timestamp(ms)
+대기열   ZSET  waiting:visit-slot:{slotId}   member=userId, score=INCR waiting:seq (전역 시퀀스 → 강한 FIFO, ms 충돌 없음)
 활성슬롯 SET   waiting:slots                 sweep 대상 slotId 집합
 예약권   STR   reservation-token:{slotId}    value=userId, TTL=300s   ← 슬롯당 단일 키
+시퀀스   STR   waiting:seq                   INCR 로 단조 증가하는 진입 순번
 ```
 
 ### Lua `tryIssue(slotId)` — 원자적 발급 (KEYS: token, queue / ARGV: ttlMs)
@@ -72,6 +73,8 @@ return popped[1]                                               -- 발급된 user
 2. **`remainingTtl <= 0` → 403**(예약권 만료). slot 이 MySQL `OPEN` 인지(아니면 409)
 3. **멱등**: 해당 slot 에 이 사용자의 활성 `PENDING_PAYMENT` 예약이 있으면 **기존 예약/결제 반환**(신규 생성 금지)
 4. 없으면 트랜잭션: `Reservation(PENDING_PAYMENT, expires_at = now + remainingTtl)` + `Payment(READY, amount=fee)` 생성
+5. **`active_reservation_key` UNIQUE 충돌 시**(직전 사용자 A 의 만료 PENDING 이 아직 EXPIRED 로 정리 안 됨 — B 가 새 토큰을 받았어도 409 가능, 리뷰-2):
+   → 해당 slot 의 만료 PENDING(`expires_at<now`)을 공통 락 순서로 `EXPIRED`+Payment `FAILED` 정리 후 **1회 재시도**. 재시도도 실패면 409.
 - **`expires_at` 은 토큰 실제 잔여시간(remainingTtl)에 정렬** — now+full TTL 로 재부여하면 실제 홀드가 5분을 초과함(리뷰-1). 응답 `expiresInSeconds = remainingTtl`.
 - 중복 생성 최종 방어: `active_reservation_key` UNIQUE(슬롯당 활성 1건) + 토큰 1개 → 이중 방어.
 
@@ -89,10 +92,10 @@ return popped[1]                                               -- 발급된 user
 
 ### D4. 만료 / 실패 / 마감 정리 (P1-2, P1-4, P2-2, 리뷰)
 - **TTL 만료**: 토큰 자동 소멸(**큐 유지**) → sweep 이 만료 PENDING 을 `EXPIRED`/Payment `FAILED` 확정 후 다음 대기자 발급(D1). GET 조회 시 read-repair(`releaseTokenIfOwner`).
-- **결제 실패** `POST /payments/{id}/failure`(USER, **소유자 검증**): Payment `FAILED`, Reservation `EXPIRED`, **`releaseTokenIfOwner(slotId, userId)`(token만, 큐 유지)** → sweep/다음 폴링이 다음 대기자 발급.
-- **슬롯 마감** `DELETE /visit-slots/{id}`:
+- **결제 실패** `POST /payments/{id}/failure`(USER, **소유자 검증**, 리뷰-3): **락 `Payment→Reservation`(PESSIMISTIC_WRITE) 후 상태 재확인** — 이미 PAID/CONFIRMED면 실패 처리 안 함(confirm 이 이김). READY면 Payment `FAILED`+Reservation `EXPIRED`, 커밋 후 **`releaseTokenIfOwner`(큐 유지)** → 다음 대기자.
+- **슬롯 마감** `DELETE /visit-slots/{id}` (리뷰-3, 락 역순 방지):
   - `RESERVED` → **마감 거부(409)**.
-  - `OPEN` → `CLOSED` + **`cleanupSlot`(큐까지 삭제)** + 진행 중 `PENDING_PAYMENT` 를 `EXPIRED`·Payment `FAILED` 정리.
+  - `OPEN` → ① **짧은 조건부 update로 CLOSED 전이·커밋**(`UPDATE ... SET status=CLOSED WHERE id=? AND status=OPEN`) + `cleanupSlot`(Redis) → ② **별도 트랜잭션**에서 진행 중 `PENDING_PAYMENT` 를 **공통 락 순서(Payment→Reservation→VisitSlot)** 로 `EXPIRED`·Payment `FAILED` 정리. slot 을 먼저 잠그면 confirm/sweep 과 락 역순이 되어 교착 → 분리.
 
 ## Architecture / Package
 ```
