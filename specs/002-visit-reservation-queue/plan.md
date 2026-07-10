@@ -42,44 +42,54 @@ return popped[1]                                               -- 발급된 user
 
 ### D1. Redis 정리 2종 + 발급 가드 + sweep 순서 (§6-1, P1-3, 리뷰)
 **정리 연산은 상황별로 다르다 — 실패/만료는 slot 이 아직 OPEN 이므로 큐를 유지한다:**
-- `releaseToken(slotId)`: **token 만 삭제**(queue + active-set 유지). → 결제 실패 / 예약(토큰) 만료용.
-- `cleanupSlot(slotId)`: token + queue + active-set **전체 삭제**. → 확정(RESERVED) / 마감(CLOSED) / 슬롯 만료(EXPIRED)용.
+- `releaseTokenIfOwner(slotId, userId)`: **현재 token value == userId 일 때만 DEL**(queue+active-set 유지). → 결제 실패 / 예약 만료 / read-repair. **owner 체크 필수**(리뷰-2): A 만료 처리가 늦게 도착해 이미 B 에게 발급된 토큰을 지우면 안 됨.
+  ```lua
+  if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end
+  return 0
+  ```
+- `cleanupSlot(slotId)`: token + queue + active-set **전체 삭제**(무조건). → 확정(RESERVED) / 마감(CLOSED) / 슬롯 만료(EXPIRED) — slot 이 종료 상태라 안전.
 
 `tryIssueIfSlotOpen(slotId)`: MySQL slot 이 `OPEN` 이면 `tryIssue`(Lua), 아니면 `cleanupSlot`.
 
 멱등 호출 지점: ①대기열 진입 직후 ②순번 조회 시 ③sweep 스케줄러(2초).
 
+**DB 락 순서(공통, 리뷰-3): `Payment → Reservation → VisitSlot`.** confirm/sweep 모두 이 순서로 잠근다(교착 방지).
+
 **sweep(slotId) 순서 (P2 — 만료 PENDING 정리를 먼저)**:
 ```
-1. 만료 PENDING (status=PENDING_PAYMENT AND expires_at<now) → EXPIRED + Payment FAILED   // active_reservation_key NULL화 (안 하면 다음 예약이 409)
+1. 만료 후보(status=PENDING_PAYMENT AND expires_at<now) 각각:
+   - 락(Payment→Reservation→VisitSlot) 후 상태 재확인
+   - 이미 PAID/CONFIRMED 면 만료 처리 안 함(confirm 이 이겼음)
+   - 아니면 Reservation EXPIRED + Payment FAILED (active_reservation_key NULL화; 안 하면 다음 예약 409)
 2. slot 상태 확인(OPEN 여부)
 3. tryIssueIfSlotOpen(slotId)
 4. 큐·토큰 모두 비면 waiting:slots 에서 제거
 ```
 
-### D2. 예약 생성 — 멱등 (§6-3, P1-1)
+### D2. 예약 생성 — 멱등 + 잔여 TTL 기준 (§6-3, P1-1, 리뷰-1)
 `POST /visit-slots/{slotId}/reservations` (USER):
-1. `reservation-token:{slotId}` == userId 검증(아니면 403)
-2. slot 이 MySQL `OPEN` 인지(아니면 409)
+1. `reservation-token:{slotId}` == userId 검증(아니면 403) + **`PTTL` 조회 → `remainingTtl`**
+2. **`remainingTtl <= 0` → 403**(예약권 만료). slot 이 MySQL `OPEN` 인지(아니면 409)
 3. **멱등**: 해당 slot 에 이 사용자의 활성 `PENDING_PAYMENT` 예약이 있으면 **기존 예약/결제 반환**(신규 생성 금지)
-4. 없으면 트랜잭션: `Reservation(PENDING_PAYMENT, expires_at=now+TTL)` + `Payment(READY, amount=fee)` 생성
+4. 없으면 트랜잭션: `Reservation(PENDING_PAYMENT, expires_at = now + remainingTtl)` + `Payment(READY, amount=fee)` 생성
+- **`expires_at` 은 토큰 실제 잔여시간(remainingTtl)에 정렬** — now+full TTL 로 재부여하면 실제 홀드가 5분을 초과함(리뷰-1). 응답 `expiresInSeconds = remainingTtl`.
 - 중복 생성 최종 방어: `active_reservation_key` UNIQUE(슬롯당 활성 1건) + 토큰 1개 → 이중 방어.
 
 ### D3. 결제 확정 — 멱등 우선 + 락 + 만료검사 (§2.4, §6-3, P1-b, P2-2, P2-3)
-`POST /payments/{paymentId}/confirmation` (USER) — **순서 중요**(멱등 재시도 시 토큰이 이미 삭제됐어도 403 안 나게):
+`POST /payments/{paymentId}/confirmation` (USER) — **하나의 `@Transactional`**(잠금~커밋 동일 범위), **락 순서 `Payment→Reservation→VisitSlot`**(sweep 과 동일):
 1. `Payment` **PESSIMISTIC_WRITE 잠금 조회**
 2. **소유자 검증** `payment.userId==auth.userId`(아니면 403)
 3. **이미 `PAID`(예약 CONFIRMED) → 토큰 검사 없이 현재 상태 반환**(멱등)
 4. `READY` 일 때만: **토큰 소유자 검증**(아니면 403)
-5. 만료 검사: `now > reservation.expires_at` → `EXPIRED` 처리 후 409
-6. **단일 MySQL 트랜잭션**: Payment `READY→PAID`, Reservation `→CONFIRMED`, `visit_slot OPEN→RESERVED`
+5. `Reservation`(PESSIMISTIC_WRITE) 잠금 → 만료 검사 `now > expires_at` → `EXPIRED` 처리 후 409
+6. `VisitSlot` 잠금 → Payment `READY→PAID`, Reservation `→CONFIRMED`, `visit_slot OPEN→RESERVED`
    - 최종 방어: `active_reservation_key` UNIQUE + 상태 조건부 update
 7. 커밋 후 `cleanupSlot(slotId)`(확정이므로 큐까지 삭제)
-- 경쟁 실패는 409.
+- 경쟁 실패는 409. sweep 과 동일 락 순서라 만료 직전 confirm/sweep 동시 실행 시 교착 없이 하나만 성공.
 
 ### D4. 만료 / 실패 / 마감 정리 (P1-2, P1-4, P2-2, 리뷰)
-- **TTL 만료**: 토큰 자동 소멸(**큐 유지**) → sweep 이 만료 PENDING 을 `EXPIRED`/Payment `FAILED` 확정 후 다음 대기자 발급(D1). GET 조회 시 read-repair.
-- **결제 실패** `POST /payments/{id}/failure`(USER, **소유자 검증**): Payment `FAILED`, Reservation `EXPIRED`, **`releaseToken`(token만, 큐 유지)** → sweep/다음 폴링이 다음 대기자 발급.
+- **TTL 만료**: 토큰 자동 소멸(**큐 유지**) → sweep 이 만료 PENDING 을 `EXPIRED`/Payment `FAILED` 확정 후 다음 대기자 발급(D1). GET 조회 시 read-repair(`releaseTokenIfOwner`).
+- **결제 실패** `POST /payments/{id}/failure`(USER, **소유자 검증**): Payment `FAILED`, Reservation `EXPIRED`, **`releaseTokenIfOwner(slotId, userId)`(token만, 큐 유지)** → sweep/다음 폴링이 다음 대기자 발급.
 - **슬롯 마감** `DELETE /visit-slots/{id}`:
   - `RESERVED` → **마감 거부(409)**.
   - `OPEN` → `CLOSED` + **`cleanupSlot`(큐까지 삭제)** + 진행 중 `PENDING_PAYMENT` 를 `EXPIRED`·Payment `FAILED` 정리.

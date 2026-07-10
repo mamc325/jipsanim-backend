@@ -37,7 +37,7 @@ Index: `(property_id, status)`. Unique: `(property_id, start_time)` 중복 슬�
 | visit_slot_id | BIGINT | FK visit_slot.id |
 | status | VARCHAR(20) | ReservationStatus, default PENDING_PAYMENT |
 | active_reservation_key | BIGINT | **생성 컬럼**: status IN (PENDING_PAYMENT, CONFIRMED) → visit_slot_id, else NULL |
-| expires_at | DATETIME(6) | PENDING 만료 기준(= reserved_at + token TTL). Redis 토큰 TTL 과 정렬 |
+| expires_at | DATETIME(6) | PENDING 만료 기준 = **now + 토큰 잔여시간(Redis PTTL)** (발급 후 경과 반영, 홀드 5분 초과 방지) |
 | reserved_at | DATETIME(6) | 생성 시각 |
 | confirmed_at | DATETIME(6) | nullable |
 | cancelled_at | DATETIME(6) | nullable |
