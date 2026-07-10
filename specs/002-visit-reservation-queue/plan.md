@@ -16,7 +16,7 @@ HELD 는 MySQL 에 두지 않고 Redis 토큰 존재로 파생(§6-2). Redis↔M
 ## Constitution Check
 | 원칙 | 준수 |
 | --- | --- |
-| II. 멱등/원자성 | 예약권 발급은 **단일 Lua**(EXISTS→ZPOPMIN→SET PX). 확정은 상태조건부 + `confirmed_slot_key` UNIQUE. 결제 확정 멱등 |
+| II. 멱등/원자성 | 예약권 발급은 **단일 Lua**(EXISTS→ZPOPMIN→SET PX). 확정은 상태조건부 + `active_reservation_key` UNIQUE. 결제 확정 멱등 |
 | V. 정합성 우선 | 확정만 MySQL 트랜잭션. Redis 는 큐/토큰(임시). 부분실패 지점 최소화 |
 | VI. 차수 분리 | 환불/정산은 3차. Payment 는 READY/PAID/FAILED 까지 |
 | VIII. 상태전이 테스트 | 발급 원자성·확정·만료 재발급·중복예약 방지 테스트 |
@@ -90,7 +90,7 @@ com.jipsanim.reservation
 
 ## Testing Strategy
 - 단위: Lua tryIssue(토큰 유무/빈 큐), 확정 상태전이/멱등
-- 통합(Testcontainers MySQL + Redis): 예약권 1개 보장, 확정→RESERVED, 만료 후 재발급, 중복예약 방지(confirmed_slot_key)
+- 통합(Testcontainers MySQL + Redis): 예약권 1개 보장, 확정→RESERVED, 만료 후 재발급, 중복예약 방지(active_reservation_key)
 - 부하(k6 `reservation-queue.js`): 동시 500명 진입 → 순번 정합·확정 1건·중복 0
 
 ## Phasing
