@@ -7,6 +7,7 @@
 - [ ] T201 `spring-boot-starter-data-redis` 의존성 + `spring.data.redis.*` 설정(로컬/Testcontainers)
 - [ ] T202 [P] `application.yml`: `reservation.token-ttl-seconds=300`, `sweep-interval-ms=2000`, `fee-amount`
 - [ ] T203 [P] Testcontainers 에 Redis 컨테이너 추가(@ServiceConnection)
+- [ ] T204 ErrorCode 2차 코드 추가(ALREADY_WAITING/ALREADY_GRANTED/CONFLICT) + **GlobalExceptionHandler: DataIntegrityViolation → 중립 `CONFLICT`(409)** 로 변경(현재 ALREADY_REVIEWED 고정 수정, 항목 7). 1차 회귀 확인
 
 ## Phase 1. 대기열 + 예약권 (Redis)
 - [ ] T210 [P] 테스트: Lua `tryIssue` — 토큰 있으면 no-op, 빈 큐 no-op, 선두 발급, 동시성 하 슬롯당 1개
@@ -15,8 +16,8 @@
 
 ## Phase 2. 방문 슬롯
 - [ ] T220 `VisitSlot` 엔티티(status OPEN/RESERVED/CLOSED/EXPIRED) + 리포지토리(UNIQUE property_id+start_time)
-- [ ] T221 [P] 테스트: 슬롯 CRUD 소유자/상태 제약(RESERVED 마감 불가)
-- [ ] T222 슬롯 컨트롤러/서비스: POST/GET/DELETE — RESERVED 거부 409; OPEN→**조건부 update로 CLOSED 커밋**(WHERE status=OPEN)+cleanupSlot, **PENDING 정리는 별도 tx·공통 락 순서**(락 역순 방지, 리뷰-3)
+- [ ] T221 [P] 테스트: 슬롯 CRUD 소유자/상태 제약(RESERVED 마감 불가), **생성 검증(비ACTIVE 매물 409, 과거/역전 시간 409, 시간 겹침 409)** (항목 6)
+- [ ] T222 슬롯 컨트롤러/서비스: POST(**검증: ACTIVE 매물·미래·start<end·겹침 금지**, 항목 6)/GET/DELETE — RESERVED 거부 409; OPEN→**조건부 update로 CLOSED 커밋**(WHERE status=OPEN)+cleanupSlot, **PENDING 정리는 별도 tx·공통 락 순서**(락 역순 방지, 리뷰-3)
 
 ## Phase 3. 대기열 API + 발급 트리거
 - [ ] T230 [P] 테스트: 진입/순번 조회 시 tryIssue, 큐 중복 진입 409(ALREADY_WAITING), **토큰 보유자 재진입 409(ALREADY_GRANTED)**, 선두 tokenGranted/position=0
@@ -29,7 +30,7 @@
 - [ ] T243 `GET /me/reservations`
 
 ## Phase 5. 결제 확정/실패
-- [ ] T250 [P] 테스트: 소유자 검증(403), **멱등 재시도 시 토큰 삭제됐어도 200**(P1-b), 확정 트랜잭션(PAID+CONFIRMED+RESERVED+cleanupSlot), 동시 확정 1건, 만료 시 409
+- [ ] T250 [P] 테스트: 소유자 검증(403), **멱등 재시도 토큰 삭제돼도 200**(P1-b), 확정(PAID+CONFIRMED+RESERVED+cleanupSlot), 동시 확정 1건, **confirm 만료 시 EXPIRED+FAILED+releaseToken 후 409**(항목 3), **failure 멱등: FAILED 재호출 200 / PAID 이후 409**(항목 4)
 - [ ] T251 `POST /payments/{id}/confirmation`: 잠금→소유자검증→**이미 PAID면 현재상태 반환**→READY면 토큰검증→만료검사→트랜잭션→cleanupSlot (plan D3, P1-b/P2-2/P2-3)
       - **하나의 `@Transactional`**(잠금~커밋 동일 범위), **락 순서 `Payment→Reservation→VisitSlot`**(sweep 과 동일, 리뷰-3)
 - [ ] T252 `POST /payments/{id}/failure`: 소유자검증→**락 Payment→Reservation 후 재확인(PAID면 skip)**→FAILED+Reservation EXPIRED+**releaseTokenIfOwner(큐 유지)** (리뷰-3)

@@ -8,6 +8,17 @@
 방문 슬롯(MySQL) + Redis Sorted Set 대기열 + TTL 예약권(원자적 Lua 발급) + Mock 결제로 슬롯당 1명 확정.
 HELD 는 MySQL 에 두지 않고 Redis 토큰 존재로 파생(§6-2). Redis↔MySQL 동기화는 **예약 확정 1지점**뿐.
 
+## 구현 전 확정 (Phase 2 진입 조건)
+Phase 0~1(Redis 인프라·WaitingQueue·Lua)은 바로 착수 가능. Phase 2 이후는 아래 8건이 코드에 박혀 있어야 흔들리지 않음:
+1. `active_reservation_key` 는 **앱 관리 컬럼**(1차 active_key 패턴, 생성 컬럼 아님) — data-model
+2. `enqueue` 는 **Lua로 INCR+ZADD NX+SADD 원자화** — 위 Redis 설계
+3. `confirm` 만료 시 **Reservation EXPIRED + Payment FAILED + releaseTokenIfOwner** — D3-5
+4. `failure` **멱등**: FAILED 재호출=200, PAID 이후=409 — D4
+5. `slot close` 는 confirm 과 **데드락 안 나게 락 순서/트랜잭션 분리** — D4
+6. 슬롯 생성은 **ACTIVE 매물만, 과거/역전/겹침 시간 금지** — contract, T222
+7. **ErrorCode 2차 코드 추가** + GlobalExceptionHandler **DataIntegrityViolation → 중립 CONFLICT(409)**(현재 ALREADY_REVIEWED 고정 수정) — T204
+8. 위 항목 **테스트** 추가 — T221/T242/T250/T262
+
 ## Technical Context
 - 추가 의존성: `spring-boot-starter-data-redis`
 - 인프라: `docker-compose.yml` 에 `redis:7` 추가, `spring.data.redis.*` 설정
@@ -28,6 +39,16 @@ HELD 는 MySQL 에 두지 않고 Redis 토큰 존재로 파생(§6-2). Redis↔M
 예약권   STR   reservation-token:{slotId}    value=userId, TTL=300s   ← 슬롯당 단일 키
 시퀀스   STR   waiting:seq                   INCR 로 단조 증가하는 진입 순번
 ```
+
+### Lua `enqueue(slotId, userId)` — 원자적 진입 (KEYS: queue, activeSlots, seq / ARGV: slotId, userId)
+```lua
+if redis.call('ZSCORE', KEYS[1], ARGV[2]) then return 0 end   -- 이미 큐에 있음(ALREADY_WAITING)
+local seq = redis.call('INCR', KEYS[3])                         -- 전역 FIFO 시퀀스
+redis.call('ZADD', KEYS[1], seq, ARGV[2])
+redis.call('SADD', KEYS[2], ARGV[1])                            -- sweep 대상 등록
+return seq
+```
+- INCR + ZADD + SADD 를 한 스크립트로 → 진입 원자화, 중복 진입 방지, FIFO 보장.
 
 ### Lua `tryIssue(slotId)` — 원자적 발급 (KEYS: token, queue / ARGV: ttlMs)
 ```lua
@@ -84,7 +105,7 @@ return popped[1]                                               -- 발급된 user
 2. **소유자 검증** `payment.userId==auth.userId`(아니면 403)
 3. **이미 `PAID`(예약 CONFIRMED) → 토큰 검사 없이 현재 상태 반환**(멱등)
 4. `READY` 일 때만: **토큰 소유자 검증**(아니면 403)
-5. `Reservation`(PESSIMISTIC_WRITE) 잠금 → 만료 검사 `now > expires_at` → `EXPIRED` 처리 후 409
+5. `Reservation`(PESSIMISTIC_WRITE) 잠금 → 만료 검사 `now > expires_at` → **Reservation `EXPIRED` + Payment `FAILED` + `releaseTokenIfOwner`** 후 409(만료)
 6. `VisitSlot` 잠금 → Payment `READY→PAID`, Reservation `→CONFIRMED`, `visit_slot OPEN→RESERVED`
    - 최종 방어: `active_reservation_key` UNIQUE + 상태 조건부 update
 7. 커밋 후 `cleanupSlot(slotId)`(확정이므로 큐까지 삭제)
@@ -92,7 +113,10 @@ return popped[1]                                               -- 발급된 user
 
 ### D4. 만료 / 실패 / 마감 정리 (P1-2, P1-4, P2-2, 리뷰)
 - **TTL 만료**: 토큰 자동 소멸(**큐 유지**) → sweep 이 만료 PENDING 을 `EXPIRED`/Payment `FAILED` 확정 후 다음 대기자 발급(D1). GET 조회 시 read-repair(`releaseTokenIfOwner`).
-- **결제 실패** `POST /payments/{id}/failure`(USER, **소유자 검증**, 리뷰-3): **락 `Payment→Reservation`(PESSIMISTIC_WRITE) 후 상태 재확인** — 이미 PAID/CONFIRMED면 실패 처리 안 함(confirm 이 이김). READY면 Payment `FAILED`+Reservation `EXPIRED`, 커밋 후 **`releaseTokenIfOwner`(큐 유지)** → 다음 대기자.
+- **결제 실패** `POST /payments/{id}/failure`(USER, **소유자 검증**): **락 `Payment→Reservation`(PESSIMISTIC_WRITE) 후 상태 재확인**.
+  - 이미 `FAILED` → **200(멱등)** 현재 상태 반환.
+  - 이미 `PAID`(CONFIRMED) → **409**(확정된 결제는 실패 불가).
+  - `READY` → Payment `FAILED` + Reservation `EXPIRED`, 커밋 후 **`releaseTokenIfOwner`(큐 유지)** → 다음 대기자.
 - **슬롯 마감** `DELETE /visit-slots/{id}` (리뷰-3, 락 역순 방지):
   - `RESERVED` → **마감 거부(409)**.
   - `OPEN` → ① **짧은 조건부 update로 CLOSED 전이·커밋**(`UPDATE ... SET status=CLOSED WHERE id=? AND status=OPEN`) + `cleanupSlot`(Redis) → ② **별도 트랜잭션**에서 진행 중 `PENDING_PAYMENT` 를 **공통 락 순서(Payment→Reservation→VisitSlot)** 로 `EXPIRED`·Payment `FAILED` 정리. slot 을 먼저 잠그면 confirm/sweep 과 락 역순이 되어 교착 → 분리.

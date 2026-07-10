@@ -13,7 +13,8 @@
 // req { "startTime":"2026-07-20T14:00:00", "endTime":"2026-07-20T14:30:00" }
 // res 201 { "visitSlotId": 5, "status": "OPEN" }
 ```
-- 409 `INVALID_STATE`(동일 시각 슬롯 존재), 403 `NOT_OWNER`.
+- 검증: **매물이 `ACTIVE` 일 때만**(아니면 409), `startTime` 은 **미래**(과거 금지), `start<end`, **기존 슬롯과 시간 겹침 금지**(항목 6).
+- 409 `INVALID_STATE`(매물 비ACTIVE / 과거·역전 시간 / 시간 겹침), 403 `NOT_OWNER`, 400 `VALIDATION_ERROR`.
 
 ### GET /api/properties/{propertyId}/visit-slots  [PUBLIC]
 ```json
@@ -91,7 +92,10 @@
 ```json
 // res 200 { "paymentId":9,"paymentStatus":"FAILED","reservationStatus":"EXPIRED" }
 ```
-- 처리: **소유자 검증**(payment.userId==auth, 아니면 403) → Payment READY→FAILED, Reservation→EXPIRED, **`releaseTokenIfOwner(slotId, userId)`**(token value==userId 일 때만 DEL, 큐/active-set 유지) → sweep/다음 폴링이 다음 대기자 발급. (slot 은 여전히 OPEN 이므로 큐 유지)
+- 처리: **소유자 검증**(payment.userId==auth, 아니면 403) → 락 Payment→Reservation 재확인:
+  - 이미 `FAILED` → **200 멱등**(현재 상태 반환)
+  - 이미 `PAID`/CONFIRMED → **409**(확정 결제는 실패 불가)
+  - `READY` → Payment FAILED + Reservation EXPIRED + **`releaseTokenIfOwner`**(큐/active-set 유지) → 다음 대기자.
 
 ---
 
