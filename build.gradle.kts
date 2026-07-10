@@ -22,6 +22,7 @@ val queryDslVersion = "5.1.0"
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+	implementation("org.springframework.boot:spring-boot-starter-data-redis")
 	implementation("org.springframework.boot:spring-boot-starter-security")
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	implementation("org.springframework.boot:spring-boot-starter-web")
@@ -55,6 +56,7 @@ dependencies {
 	testImplementation("org.springframework.security:spring-security-test")
 	testImplementation("org.testcontainers:junit-jupiter")
 	testImplementation("org.testcontainers:mysql")
+	testImplementation("com.redis:testcontainers-redis:2.2.2")
 	// 외부 API 클라이언트 테스트 (MockWebServer)
 	testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 	testCompileOnly("org.projectlombok:lombok")

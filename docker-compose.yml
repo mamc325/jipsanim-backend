@@ -1,6 +1,6 @@
 # 로컬 개발 인프라. `docker compose up -d` 로 실행.
-# application.yml 기본값(DB_NAME=jipsanim, root/root, 3306)과 정렬.
-# (Redis/Elasticsearch 는 해당 차수에서 아래에 추가)
+# application.yml 기본값(DB_NAME=jipsanim, root/root, 3306 / Redis 6379)과 정렬.
+# (Elasticsearch 는 5차에서 추가)
 services:
   mysql:
     image: mysql:8.0
@@ -18,6 +18,17 @@ services:
       - jipsanim-mysql-data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7
+    container_name: jipsanim-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10

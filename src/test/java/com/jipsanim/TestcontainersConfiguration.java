@@ -1,5 +1,6 @@
 package com.jipsanim;
 
+import com.redis.testcontainers.RedisContainer;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
@@ -13,6 +14,12 @@ public class TestcontainersConfiguration {
 	@ServiceConnection
 	public MySQLContainer<?> mysqlContainer() {
 		return new MySQLContainer<>(DockerImageName.parse("mysql:8.0"));
+	}
+
+	@Bean
+	@ServiceConnection
+	public RedisContainer redisContainer() {
+		return new RedisContainer(DockerImageName.parse("redis:7"));
 	}
 
 }
