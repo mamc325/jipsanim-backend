@@ -25,6 +25,9 @@ public enum ErrorCode {
     // 409
     INVALID_STATE(HttpStatus.CONFLICT, "현재 상태에서 허용되지 않는 작업입니다."),
     ALREADY_REVIEWED(HttpStatus.CONFLICT, "이미 처리된 건입니다."),
+    CONFLICT(HttpStatus.CONFLICT, "동시 요청 경쟁으로 처리에 실패했습니다."),
+    ALREADY_WAITING(HttpStatus.CONFLICT, "이미 대기열에 있습니다."),
+    ALREADY_GRANTED(HttpStatus.CONFLICT, "이미 예약권을 보유하고 있습니다."),
 
     // 422
     INSUFFICIENT_DATA_APPROVAL_BLOCKED(HttpStatus.UNPROCESSABLE_ENTITY, "표본이 부족한 후보는 승인할 수 없습니다."),
