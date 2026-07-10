@@ -1,0 +1,49 @@
+# Tasks: 방문 예약 대기열 (2차)
+
+규칙: `[P]` 병렬 가능. 핵심 상태전이/원자성은 테스트 먼저. 브랜치 `feat/002-p<phase>-*`.
+
+## Phase 0. 인프라
+- [ ] T200 `docker-compose.yml` 에 `redis:7` 추가(포트 6379, healthcheck)
+- [ ] T201 `spring-boot-starter-data-redis` 의존성 + `spring.data.redis.*` 설정(로컬/Testcontainers)
+- [ ] T202 [P] `application.yml`: `reservation.token-ttl-seconds=300`, `sweep-interval-ms=2000`, `fee-amount`
+- [ ] T203 [P] Testcontainers 에 Redis 컨테이너 추가(@ServiceConnection)
+
+## Phase 1. 대기열 + 예약권 (Redis)
+- [ ] T210 [P] 테스트: Lua `tryIssue` — 토큰 있으면 no-op, 빈 큐 no-op, 선두 발급, 동시성 하 슬롯당 1개
+- [ ] T211 `RedisConfig`(StringRedisTemplate, DefaultRedisScript<Lua>)
+- [ ] T212 `WaitingQueueService`: enqueue(slotId,userId)/rank/tryIssue/hasToken(userId)/tokenTtl/release/clear + `waiting:slots` 관리 (Refs: T210, plan Redis)
+
+## Phase 2. 방문 슬롯
+- [ ] T220 `VisitSlot` 엔티티(status OPEN/RESERVED/CLOSED/EXPIRED) + 리포지토리(UNIQUE property_id+start_time)
+- [ ] T221 [P] 테스트: 슬롯 CRUD 소유자/상태 제약(RESERVED 마감 불가)
+- [ ] T222 슬롯 컨트롤러/서비스: POST/GET/DELETE(→CLOSED)
+
+## Phase 3. 대기열 API + 발급 트리거
+- [ ] T230 [P] 테스트: 진입/순번 조회 시 tryIssue, 중복 진입 409, 선두 tokenGranted
+- [ ] T231 `POST /visit-slots/{id}/waiting`(진입+tryIssue), `GET .../waiting/me`(순번+tryIssue+TTL)
+
+## Phase 4. 예약 생성
+- [ ] T240 [P] 테스트: 토큰 보유자만 예약, slot OPEN 아니면 409, Reservation+Payment 동시 생성
+- [ ] T241 `Reservation`/`Payment` 엔티티(+`confirmed_slot_key` UNIQUE, payment.reservation_id UNIQUE) + 리포지토리
+- [ ] T242 `POST /visit-slots/{id}/reservations`: 토큰 검증→Reservation(PENDING_PAYMENT)+Payment(READY) (plan D2)
+- [ ] T243 `GET /me/reservations`
+
+## Phase 5. 결제 확정/실패
+- [ ] T250 [P] 테스트: 확정 트랜잭션(PAID+CONFIRMED+RESERVED+토큰삭제), 멱등, 동시 확정 1건(confirmed_slot_key), 실패→EXPIRED
+- [ ] T251 `POST /payments/{id}/confirmation`: 토큰확인→단일 트랜잭션 확정→커밋 후 토큰/큐 삭제 (plan D3)
+- [ ] T252 `POST /payments/{id}/failure`: FAILED+EXPIRED+토큰삭제
+
+## Phase 6. 만료 재발급 (sweep)
+- [ ] T260 [P] 테스트: 토큰 TTL 만료 후 sweep 이 다음 대기자에게 발급, slot OPEN 유지
+- [ ] T261 `TokenSweepScheduler`(2초): `waiting:slots` 순회 tryIssue, 빈 큐 정리 (plan D1/D4)
+
+## Phase 7. 통합 + k6 부하
+- [ ] T270 통합(Testcontainers MySQL+Redis): 진입→발급→예약→확정→RESERVED, 만료 재발급, 중복예약 방지
+- [ ] T271 k6 `loadtest/k6/reservation-queue.js`: 동시 500명 진입 → 순번 정합·확정 1건·중복 0·에러율
+- [ ] T272 [P] 인수기준(spec §4) 체크, docs/load-test-results 에 대기열 수치 추가
+
+## 의존성
+```
+Phase0 인프라 → Phase1 큐(Lua) → Phase2 슬롯 → Phase3 대기열API
+                                              → Phase4 예약 → Phase5 결제확정 → Phase6 sweep → Phase7 통합/부하
+```
