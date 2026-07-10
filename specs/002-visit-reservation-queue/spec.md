@@ -101,10 +101,13 @@ VisitSlot, Reservation, Payment. (Refund/Settlement 은 3차)
 - `POST /payments/{id}/confirmation`(READY→PAID): 소유자 검증 + Payment 락 + 만료검사 → §2.4 확정 트랜잭션 → Reservation `CONFIRMED`, slot `RESERVED`, 토큰/큐 삭제. 멱등.
 
 ### 6-4. 정합성 정리 규칙 (리뷰 P1/P2 반영)
-- **발급 가드**: `tryIssueIfSlotOpen` — MySQL slot 이 OPEN 일 때만 발급, 아니면 Redis(토큰/큐/active-set) 정리(P1-3).
+- **Redis 정리 2종**(상황별): `releaseToken`(token만, **큐 유지** — 결제 실패/예약 만료, slot 여전히 OPEN) / `cleanupSlot`(token+큐+active-set — 확정/마감/슬롯만료). 실패·만료에 큐를 지우면 다음 대기자가 사라짐.
+- **발급 가드**: `tryIssueIfSlotOpen` — MySQL slot 이 OPEN 일 때만 발급, 아니면 `cleanupSlot`(P1-3).
 - **만료 연결**: `reservation.expires_at`(= reserved_at + 토큰 TTL). sweep/read-repair/confirmation 에서 `now>expires_at` → `EXPIRED`+Payment `FAILED`(P1-2).
-- **슬롯 마감**: RESERVED 는 거부(409), OPEN 은 CLOSED + Redis 정리 + PENDING 예약 EXPIRED/Payment FAILED(P1-4).
-- **소유자 검증**: confirmation/failure 는 `payment.userId==auth.userId`(아니면 403)(P2-2). 동시 확정은 Payment PESSIMISTIC_WRITE 잠금(P2-3).
+- **sweep 순서**: ①만료 PENDING 정리(EXPIRED, active_reservation_key NULL화) → ②slot OPEN 확인 → ③tryIssueIfSlotOpen → ④빈 큐 active-set 제거. **정리를 먼저** 안 하면 다음 예약이 409.
+- **확정 멱등 순서**: Payment 잠금 → 소유자 검증 → **이미 PAID면 토큰 검사 없이 반환** → READY면 토큰 검증 → 만료검사 → 확정. (커밋 후 토큰 삭제해도 재시도 200)
+- **슬롯 마감**: RESERVED 거부(409), OPEN 은 CLOSED + `cleanupSlot` + PENDING EXPIRED/Payment FAILED(P1-4).
+- **소유자 검증**: confirmation/failure 는 `payment.userId==auth.userId`(아니면 403)(P2-2). 동시 확정은 Payment PESSIMISTIC_WRITE(P2-3).
 
 ## 7. 다음 산출물 (착수)
 `/plan` → `data-model`(visit_slot/reservation/payment) → `contracts`(슬롯·대기열·예약·결제 API) → `tasks`. 인프라: compose Redis + `spring-boot-starter-data-redis`.

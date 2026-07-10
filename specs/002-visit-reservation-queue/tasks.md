@@ -11,7 +11,7 @@
 ## Phase 1. 대기열 + 예약권 (Redis)
 - [ ] T210 [P] 테스트: Lua `tryIssue` — 토큰 있으면 no-op, 빈 큐 no-op, 선두 발급, 동시성 하 슬롯당 1개
 - [ ] T211 `RedisConfig`(StringRedisTemplate, DefaultRedisScript<Lua>)
-- [ ] T212 `WaitingQueueService`: enqueue/rank/tryIssue(Lua)/`tryIssueIfSlotOpen`(slot OPEN 가드, P1-3)/hasToken/tokenTtl/`cleanupSlotRedis`(토큰·큐·active-set 삭제) + `waiting:slots` 관리 (Refs: T210, plan D1)
+- [ ] T212 `WaitingQueueService`: enqueue/rank/tryIssue(Lua)/`tryIssueIfSlotOpen`(slot OPEN 가드, P1-3)/hasToken/tokenTtl + **정리 2종**: `releaseToken`(token만, 큐 유지 — 실패/만료) / `cleanupSlot`(token+큐+active-set — 확정/마감) + `waiting:slots` 관리 (Refs: T210, plan D1)
 
 ## Phase 2. 방문 슬롯
 - [ ] T220 `VisitSlot` 엔티티(status OPEN/RESERVED/CLOSED/EXPIRED) + 리포지토리(UNIQUE property_id+start_time)
@@ -29,13 +29,13 @@
 - [ ] T243 `GET /me/reservations`
 
 ## Phase 5. 결제 확정/실패
-- [ ] T250 [P] 테스트: 소유자 검증(403), 확정 트랜잭션(PAID+CONFIRMED+RESERVED+cleanup), 멱등, 동시 확정 1건(active_reservation_key), 만료(expires_at) 확정 시 409
-- [ ] T251 `POST /payments/{id}/confirmation`: 소유자검증→Payment PESSIMISTIC_WRITE→만료검사→단일 트랜잭션 확정→커밋 후 cleanupSlotRedis (plan D3, P2-2/P2-3)
-- [ ] T252 `POST /payments/{id}/failure`: 소유자검증→FAILED+Reservation EXPIRED+cleanupSlotRedis
+- [ ] T250 [P] 테스트: 소유자 검증(403), **멱등 재시도 시 토큰 삭제됐어도 200**(P1-b), 확정 트랜잭션(PAID+CONFIRMED+RESERVED+cleanupSlot), 동시 확정 1건, 만료 시 409
+- [ ] T251 `POST /payments/{id}/confirmation`: 잠금→소유자검증→**이미 PAID면 현재상태 반환**→READY면 토큰검증→만료검사→트랜잭션→cleanupSlot (plan D3, P1-b/P2-2/P2-3)
+- [ ] T252 `POST /payments/{id}/failure`: 소유자검증→FAILED+Reservation EXPIRED+**releaseToken(큐 유지)**
 
 ## Phase 6. 만료 재발급 (sweep)
-- [ ] T260 [P] 테스트: 토큰 TTL 만료 후 sweep 이 다음 대기자 발급(slot OPEN 유지), 만료 PENDING→EXPIRED+Payment FAILED
-- [ ] T261 `TokenSweepScheduler`(2초): `waiting:slots` 순회 `tryIssueIfSlotOpen` + 만료 PENDING(expires_at<now) 정리 + 빈 큐 제거 (plan D1/D4)
+- [ ] T260 [P] 테스트: 토큰 만료 후 **PENDING 정리(EXPIRED)가 먼저 → 다음 대기자 예약 409 안 남**(P2), slot OPEN 유지
+- [ ] T261 `TokenSweepScheduler`(2초) — 순서: ①만료 PENDING→EXPIRED+Payment FAILED ②slot OPEN 확인 ③tryIssueIfSlotOpen ④빈 큐 active-set 제거 (plan D1)
 
 ## Phase 7. 통합 + k6 부하
 - [ ] T270 통합(Testcontainers MySQL+Redis): 진입→발급→예약→확정→RESERVED, 만료 재발급, 중복예약 방지
