@@ -27,18 +27,21 @@
 - 정산액이 음수면 `payout=0`, 미차감분을 `carry_over_out` 에 기록 → 다음 달 `carry_over_in` 으로 시작 차감.
 
 ## 3. 계산식 (정산)
+**이월(carry_over_in)을 먼저 차감한 뒤 수수료를 매긴다** — 음수 이월을 갚는 달에 과다 수수료 방지(리뷰 P0-1).
 ```
-total_payment  = Σ payment.amount            (status=PAID/REFUNDED, paidAt 이 해당 월)   // 결제된 것
-total_refund   = Σ refund.refund_amount       (refundedAt 이 해당 월)
-net            = total_payment - total_refund
-platform_fee   = net > 0 ? round(net * 0.20) : 0
-base           = net - platform_fee
-carry_over_in  = 전월 settlement.carry_over_out (없으면 0)
-available      = base - carry_over_in
-payout_amount  = max(0, available)
-carry_over_out = max(0, -available)           // 다음 달로 이월
+total_payment   = Σ payment.amount        (status IN (PAID, REFUNDED), paidAt ∈ 월)
+total_refund    = Σ refund.refund_amount   (refundedAt ∈ 월)
+carry_over_in   = 전월 settlement.carry_over_out (없으면 0)
+
+gross_available = total_payment - total_refund - carry_over_in     // 이월 먼저 차감
+platform_fee    = gross_available > 0 ? floor(gross_available * 0.20) : 0   // 원 단위 절사(floor)
+payout_amount   = max(0, gross_available - platform_fee)
+carry_over_out  = max(0, -gross_available)  // 음수면 다음 달로 이월
+
+net_amount      = total_payment - total_refund   // 기록용(참고 지표)
 ```
 - **UNIQUE(realtor_id, settlement_month)** → 월별 중복 정산 방지.
+- **과거 월 재정산 정책(리뷰 P0-2)**: 대상 월보다 **이후 월 정산이 이미 존재하면 재계산 금지(409)** — carry_over 연쇄 갱신 회피(단순 정책 채택). 대상 월 정산이 PENDING 이고 이후 월이 없으면 재계산 갱신.
 
 ## 4. 상태 전이
 ```
@@ -66,8 +69,13 @@ Settlement  : PENDING --관리자 확정--> CONFIRMED --지급--> PAID
 ## 7. 정합성/멱등 (구현 전 확정)
 - **취소 락 순서**: `Payment → Reservation → VisitSlot`(2차와 동일). 멱등: 이미 CANCELLED → 현재 상태 반환. 24h 경계·미CONFIRMED 는 409.
 - **환불 유일성**: `refund.payment_id` UNIQUE → 중복 환불 방지.
-- **정산 유일성**: `UNIQUE(realtor_id, settlement_month)`. 배치 재실행 시 이미 있으면 skip(또는 PENDING 재계산 정책 — plan).
-- **정산 상태 전이 멱등**: 이미 CONFIRMED/PAID 재요청 → ALREADY_REVIEWED/현재 상태.
+- **정산 유일성**: `UNIQUE(realtor_id, settlement_month)`. 배치 재실행: PENDING 이면 재계산 갱신, CONFIRMED/PAID 면 skip, 이후 월 존재 시 재계산 금지(§3).
+- **정산 상태 전이 멱등**(ALREADY_REVIEWED 재사용 안 함 — 검증 도메인 용어, 리뷰 P0-6):
+  - confirmation: `PENDING→CONFIRMED`. 이미 `CONFIRMED/PAID` 재호출 → **200 현재 상태**. (그 외 없음)
+  - payout: `CONFIRMED→PAID`. 이미 `PAID` 재호출 → **200 현재 상태**. `PENDING` → **409 INVALID_STATE**.
+- **취소 락 순서**: `Payment → Reservation → VisitSlot`. Payment 를 **reservationId 로 먼저 잠근다**(`findByReservationIdForUpdate`) — reservation 을 먼저 잠그지 않음(리뷰 P0-4).
+- **Clock 주입**: 취소 24h 판정·정산 월 계산은 주입된 `Clock` 사용(테스트 안정성, 리뷰 P1).
+- **Payment.refund()**: `PAID→REFUNDED` 만 허용, `paidAt` 유지(정산이 paidAt 에 의존). REFUNDED 상태에서 `/failure` 는 409(리뷰 P0-5, P1).
 
 ## 8. 인수 기준
 - [ ] 24h 전 취소 → 환불 전액, Payment REFUNDED, 예약 CANCELLED, 슬롯 OPEN 재개방.

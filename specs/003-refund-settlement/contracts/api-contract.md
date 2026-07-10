@@ -23,6 +23,7 @@
 ## 정산 (중개사)
 
 ### GET /api/me/settlements?month=2026-07  [REALTOR]
+- `AuthUser.userId → Realtor` 매핑 후 `realtor_id` 로 조회(리뷰 P1).
 ```json
 // content[] (month 미지정 시 전체):
 { "settlementId":3,"settlementMonth":"2026-07","totalPaymentAmount":500000,
@@ -34,36 +35,38 @@
 
 ## 정산 관리 (관리자)
 
-### POST /api/admin/settlement-batch-jobs  [ADMIN]  → 월별 정산 배치 실행
+### POST /api/admin/settlement-batch-jobs  [ADMIN]  → 월별 정산 배치 실행(동기)
 ```json
 // req(optional) { "month":"2026-07" }   // 미지정 시 전월
-// res 202 { "month":"2026-07", "createdCount":12, "skippedCount":1 }
+// res 200 { "month":"2026-07", "createdCount":12, "updatedCount":0, "skippedCount":1 }
 ```
-- 결제(paidAt)·환불(refundedAt) 집계 → Settlement(PENDING) upsert. CONFIRMED/PAID 는 skip.
+- 동기 실행 후 결과 반환(별도 job 엔티티 없음). 결제(paidAt)·환불(refundedAt) 집계 → Settlement(PENDING) upsert.
+- PENDING 재계산 갱신, CONFIRMED/PAID skip. **대상 월보다 이후 월 정산 존재 시 409**(carry_over 연쇄 방지).
 
 ### GET /api/admin/settlements?month=2026-07&realtorId=5&page=0  [ADMIN]
 ```json
 // content[]: (위 정산 필드 + realtorId)
 ```
 
-### PATCH... 아님 → POST /api/admin/settlements/{settlementId}/confirmation  [ADMIN]
+### POST /api/admin/settlements/{settlementId}/confirmation  [ADMIN]
 ```json
 // res 200 { "settlementId":3,"status":"CONFIRMED" }
 ```
-- 409 `INVALID_STATE`(PENDING 아님). 멱등: 이미 CONFIRMED → 현재 상태.
+- `PENDING→CONFIRMED`. **멱등**: 이미 `CONFIRMED`/`PAID` → 200 현재 상태.
 
 ### POST /api/admin/settlements/{settlementId}/payout  [ADMIN]
 ```json
 // res 200 { "settlementId":3,"status":"PAID","payoutAmount":360000 }
 ```
-- 409 `INVALID_STATE`(CONFIRMED 아님).
+- `CONFIRMED→PAID`. **멱등**: 이미 `PAID` → 200 현재 상태. `PENDING` → **409 `INVALID_STATE`**.
 
 ---
 
-## 에러 코드 (3차 추가/재사용)
+## 에러 코드 (3차 재사용)
 | code | HTTP | 의미 |
 | --- | --- | --- |
-| INVALID_STATE | 409 | 취소 불가(상태/24h) / 정산 상태 전이 불가 |
+| INVALID_STATE | 409 | 취소 불가(상태/24h) / payout 시 PENDING / 배치 이후월 존재 재계산 |
 | CONFLICT | 409 | 중복 환불(payment_id UNIQUE) |
 | FORBIDDEN | 403 | 예약/정산 소유자 아님 |
-| ALREADY_REVIEWED | 409 | 이미 확정된 정산 재확정 |
+
+> 정산 확정/지급의 멱등 재호출은 200 현재 상태(ALREADY_REVIEWED 재사용 안 함).

@@ -44,7 +44,8 @@ Index: `(realtor_id, refunded_at)` 정산 집계용.
 - Index: `(status)`, `(settlement_month)`.
 
 ## 3. 기존 엔티티 변경
-- **payment**: `PaymentStatus.REFUNDED` 추가. 환불 시 PAID→REFUNDED.
+- **payment**: `PaymentStatus.REFUNDED` 추가. `refund()`는 **PAID→REFUNDED 만 허용, paidAt 유지**(정산이 paidAt 에 의존, 리뷰 P1). REFUNDED 상태에서 `/failure` 요청은 **409**(리뷰 P0-5).
+- **PaymentRepository**: `findByReservationIdForUpdate(reservationId)` 추가 — 취소 시 Payment 를 먼저 잠금(락 순서 P→R→V, 리뷰 P0-4).
 - **reservation**: `cancel()`(기존) — CANCELLED, active_reservation_key=null.
 - **visit_slot**: `reopen()` 메서드 — RESERVED→OPEN.
 
