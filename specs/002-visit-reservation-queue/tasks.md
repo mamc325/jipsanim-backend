@@ -11,31 +11,31 @@
 ## Phase 1. 대기열 + 예약권 (Redis)
 - [ ] T210 [P] 테스트: Lua `tryIssue` — 토큰 있으면 no-op, 빈 큐 no-op, 선두 발급, 동시성 하 슬롯당 1개
 - [ ] T211 `RedisConfig`(StringRedisTemplate, DefaultRedisScript<Lua>)
-- [ ] T212 `WaitingQueueService`: enqueue(slotId,userId)/rank/tryIssue/hasToken(userId)/tokenTtl/release/clear + `waiting:slots` 관리 (Refs: T210, plan Redis)
+- [ ] T212 `WaitingQueueService`: enqueue/rank/tryIssue(Lua)/`tryIssueIfSlotOpen`(slot OPEN 가드, P1-3)/hasToken/tokenTtl/`cleanupSlotRedis`(토큰·큐·active-set 삭제) + `waiting:slots` 관리 (Refs: T210, plan D1)
 
 ## Phase 2. 방문 슬롯
 - [ ] T220 `VisitSlot` 엔티티(status OPEN/RESERVED/CLOSED/EXPIRED) + 리포지토리(UNIQUE property_id+start_time)
 - [ ] T221 [P] 테스트: 슬롯 CRUD 소유자/상태 제약(RESERVED 마감 불가)
-- [ ] T222 슬롯 컨트롤러/서비스: POST/GET/DELETE(→CLOSED)
+- [ ] T222 슬롯 컨트롤러/서비스: POST/GET/DELETE(RESERVED 거부 409, OPEN→CLOSED + cleanupSlotRedis + PENDING 정리, P1-4)
 
 ## Phase 3. 대기열 API + 발급 트리거
 - [ ] T230 [P] 테스트: 진입/순번 조회 시 tryIssue, 중복 진입 409, 선두 tokenGranted
 - [ ] T231 `POST /visit-slots/{id}/waiting`(진입+tryIssue), `GET .../waiting/me`(순번+tryIssue+TTL)
 
 ## Phase 4. 예약 생성
-- [ ] T240 [P] 테스트: 토큰 보유자만 예약, slot OPEN 아니면 409, Reservation+Payment 동시 생성
-- [ ] T241 `Reservation`/`Payment` 엔티티(+`confirmed_slot_key` UNIQUE, payment.reservation_id UNIQUE) + 리포지토리
-- [ ] T242 `POST /visit-slots/{id}/reservations`: 토큰 검증→Reservation(PENDING_PAYMENT)+Payment(READY) (plan D2)
+- [ ] T240 [P] 테스트: 토큰 보유자만 예약, slot OPEN 아니면 409, 동일 사용자 반복 호출 시 기존 반환(멱등, P1-1)
+- [ ] T241 `Reservation`(+`active_reservation_key` UNIQUE, `expires_at`)/`Payment`(reservation_id UNIQUE) 엔티티 + 리포지토리
+- [ ] T242 `POST /visit-slots/{id}/reservations`: 토큰 검증→(멱등) 기존 활성 PENDING 반환 or Reservation(PENDING,expires_at)+Payment(READY) 생성 (plan D2)
 - [ ] T243 `GET /me/reservations`
 
 ## Phase 5. 결제 확정/실패
-- [ ] T250 [P] 테스트: 확정 트랜잭션(PAID+CONFIRMED+RESERVED+토큰삭제), 멱등, 동시 확정 1건(confirmed_slot_key), 실패→EXPIRED
-- [ ] T251 `POST /payments/{id}/confirmation`: 토큰확인→단일 트랜잭션 확정→커밋 후 토큰/큐 삭제 (plan D3)
-- [ ] T252 `POST /payments/{id}/failure`: FAILED+EXPIRED+토큰삭제
+- [ ] T250 [P] 테스트: 소유자 검증(403), 확정 트랜잭션(PAID+CONFIRMED+RESERVED+cleanup), 멱등, 동시 확정 1건(active_reservation_key), 만료(expires_at) 확정 시 409
+- [ ] T251 `POST /payments/{id}/confirmation`: 소유자검증→Payment PESSIMISTIC_WRITE→만료검사→단일 트랜잭션 확정→커밋 후 cleanupSlotRedis (plan D3, P2-2/P2-3)
+- [ ] T252 `POST /payments/{id}/failure`: 소유자검증→FAILED+Reservation EXPIRED+cleanupSlotRedis
 
 ## Phase 6. 만료 재발급 (sweep)
-- [ ] T260 [P] 테스트: 토큰 TTL 만료 후 sweep 이 다음 대기자에게 발급, slot OPEN 유지
-- [ ] T261 `TokenSweepScheduler`(2초): `waiting:slots` 순회 tryIssue, 빈 큐 정리 (plan D1/D4)
+- [ ] T260 [P] 테스트: 토큰 TTL 만료 후 sweep 이 다음 대기자 발급(slot OPEN 유지), 만료 PENDING→EXPIRED+Payment FAILED
+- [ ] T261 `TokenSweepScheduler`(2초): `waiting:slots` 순회 `tryIssueIfSlotOpen` + 만료 PENDING(expires_at<now) 정리 + 빈 큐 제거 (plan D1/D4)
 
 ## Phase 7. 통합 + k6 부하
 - [ ] T270 통합(Testcontainers MySQL+Redis): 진입→발급→예약→확정→RESERVED, 만료 재발급, 중복예약 방지
