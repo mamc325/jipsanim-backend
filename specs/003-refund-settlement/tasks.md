@@ -8,10 +8,10 @@
 - [x] T302 Payment `REFUNDED` 추가 + `refund()`(PAID→REFUNDED만, paidAt 유지); **PaymentRepository.findByReservationIdForUpdate**(락 finder, P0-4); **PaymentService.fail() REFUNDED→409**(P0-5); VisitSlot `reopen()`(RESERVED→OPEN)
 
 ## Phase 2. 예약 취소/환불
-- [ ] T310 [P] 테스트: 24h 전 취소→환불/CANCELLED/slot OPEN, 24h 이내 409, 비CONFIRMED 409, 재취소 멱등, 중복환불 방지, 비소유자 403
-- [ ] T311 `CancellationService`: **락 Payment(by reservationId)→Reservation→VisitSlot**, **주입 Clock**으로 24h 판정, Refund 생성+Payment REFUNDED+Reservation CANCELLED+slot reopen, 멱등(이미 CANCELLED 반환) (plan D1)
-- [ ] T312 `POST /reservations/{id}/cancellation` 컨트롤러
-- [ ] T313 [P] 통합: 취소 후 슬롯 재개방 → 다른 사용자 재예약 가능
+- [x] T310 [P] 테스트: 24h 전 취소→환불/CANCELLED/slot OPEN, 24h 이내 409, 비CONFIRMED 409, 재취소 멱등, 중복환불 방지, 비소유자 403
+- [x] T311 `CancellationService`: **락 Payment(by reservationId)→Reservation→VisitSlot**, **주입 Clock**으로 24h 판정, Refund 생성+Payment REFUNDED+Reservation CANCELLED+slot reopen, 멱등(이미 CANCELLED 반환) (plan D1)
+- [x] T312 `POST /reservations/{id}/cancellation` 컨트롤러
+- [x] T313 [P] 통합: 취소 후 슬롯 재개방 → 다른 사용자 재예약 가능
 
 ## Phase 3. 정산 계산 + 배치
 - [ ] T320 [P] 테스트: `SettlementCalculator` — **이월 먼저 차감 후 수수료**(carry_over 갚는 달 과다수수료 없음, P0-1), floor 절사, 음수→carry_over_out, **월 경계(7월 결제→8월 환불)**

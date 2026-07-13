@@ -102,6 +102,18 @@ public class Reservation extends BaseTimeEntity {
         return status == ReservationStatus.CONFIRMED;
     }
 
+    public boolean isCancelled() {
+        return status == ReservationStatus.CANCELLED;
+    }
+
+    public boolean isOwnedBy(Long userId) {
+        return this.userId.equals(userId);
+    }
+
+    public Long getPropertyId() {
+        return propertyId;
+    }
+
     public boolean isExpiredAt(LocalDateTime now) {
         return isPending() && expiresAt != null && now.isAfter(expiresAt);
     }
