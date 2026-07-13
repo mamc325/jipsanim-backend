@@ -19,7 +19,7 @@
 
 ---
 
-## ✅ 1차 MVP — 설계 완료 (19)
+## ✅ 1차 MVP — 구현 완료 (19)
 
 ### 인증 / 사용자
 | Method | Path | 권한 | 설명 |
@@ -67,11 +67,11 @@
 
 ---
 
-## ⏳ 2차 이후 — 범위만 (계약 미작성, 컨벤션 잠정 적용)
+## ✅ 2차·3차 — 구현 완료 / 4차 이후 예정
 
-착수 차수에서 `specs/<차수>/contracts/` 로 확정. 아래 경로는 위 컨벤션을 잠정 적용한 예상안.
+2차·3차는 계약 확정 + 구현·테스트 완료. 4차 이후는 착수 차수에서 `specs/<차수>/contracts/` 로 확정.
 
-### 2차 — 방문슬롯 / 대기열 / 예약 / Mock결제 (`specs/002-visit-reservation-queue`, **계약 확정**)
+### 2차 — 방문슬롯 / 대기열 / 예약 / Mock결제 (`specs/002-visit-reservation-queue`, ✅ **구현 완료**)
 정본: `specs/002-visit-reservation-queue/contracts/api-contract.md`
 | Method | Path | 권한 |
 | --- | --- | --- |
@@ -87,7 +87,7 @@
 
 > 결정 §6-3: 결제는 예약 생성 시 동시 생성 → **별도 `POST /reservations/{id}/payments` 없음.**
 
-### 3차 — 예약취소 / 환불 / 정산 (`specs/003-refund-settlement`, **계약 확정**)
+### 3차 — 예약취소 / 환불 / 정산 (`specs/003-refund-settlement`, ✅ **구현 완료**)
 정본: `specs/003-refund-settlement/contracts/api-contract.md`
 | Method | Path | 권한 |
 | --- | --- | --- |

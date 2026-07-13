@@ -81,12 +81,13 @@ Settlement  : PENDING --관리자 확정--> CONFIRMED --지급--> PAID
 - **Payment.refund()**: `PAID→REFUNDED` 만 허용, `paidAt` 유지(정산이 paidAt 에 의존). REFUNDED 상태에서 `/failure` 는 409(리뷰 P0-5, P1).
 
 ## 8. 인수 기준
-- [ ] 24h 전 취소 → 환불 전액, Payment REFUNDED, 예약 CANCELLED, 슬롯 OPEN 재개방.
-- [ ] 24h 이내 취소 → 409.
-- [ ] 재취소 멱등, 중복 환불 방지(payment_id UNIQUE).
-- [ ] 월별 배치: 결제(paidAt)·환불(refundedAt) 집계, 수수료 20%, UNIQUE로 중복 정산 0.
-- [ ] **월 경계**: 7월 결제 → 8월 환불 시 8월 정산에서 차감, 음수면 carry_over 로 다음 달 이월(누락/중복 차감 0).
-- [ ] 정산 확정/지급 상태 전이 멱등.
+- [x] 24h 전 취소 → 환불 전액, Payment REFUNDED, 예약 CANCELLED, 슬롯 OPEN 재개방.
+- [x] 24h 이내 취소 → 409.
+- [x] 재취소 멱등, 중복 환불 방지(payment_id UNIQUE).
+- [x] 월별 배치: 결제(paidAt)·환불(refundedAt) 집계, 수수료 20%, UNIQUE로 중복 정산 0.
+- [x] **월 경계**: 7월 결제 → 8월 환불 시 8월 정산에서 차감, 음수면 carry_over 로 다음 달 이월(누락/중복 차감 0).
+- [x] 정산 확정/지급 상태 전이 멱등.
+- [x] E2E: 예약확정→취소→환불→배치집계→확정→지급→중개사 조회 전 과정.
 
 ## 9. 다음 산출물
 `plan` → `data-model` → `contracts` → `tasks`. (별도 인프라 없음 — 2차 스택 재사용)
