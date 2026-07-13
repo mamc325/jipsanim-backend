@@ -3,9 +3,9 @@
 규칙: `[P]` 병렬 가능. 상태전이/계산은 테스트 먼저. 브랜치 `feat/003-p<phase>-*`.
 
 ## Phase 1. 엔티티/상태 확장
-- [ ] T300 `Refund` 엔티티(payment_id UNIQUE, refunded_at) + RefundRepository
-- [ ] T301 `Settlement` 엔티티(+SettlementStatus, UNIQUE(realtor_id, settlement_month)) + SettlementRepository
-- [ ] T302 Payment `REFUNDED` 추가 + `refund()`(PAID→REFUNDED만, paidAt 유지); **PaymentRepository.findByReservationIdForUpdate**(락 finder, P0-4); **PaymentService.fail() REFUNDED→409**(P0-5); VisitSlot `reopen()`(RESERVED→OPEN)
+- [x] T300 `Refund` 엔티티(payment_id UNIQUE, refunded_at) + RefundRepository
+- [x] T301 `Settlement` 엔티티(+SettlementStatus, UNIQUE(realtor_id, settlement_month)) + SettlementRepository
+- [x] T302 Payment `REFUNDED` 추가 + `refund()`(PAID→REFUNDED만, paidAt 유지); **PaymentRepository.findByReservationIdForUpdate**(락 finder, P0-4); **PaymentService.fail() REFUNDED→409**(P0-5); VisitSlot `reopen()`(RESERVED→OPEN)
 
 ## Phase 2. 예약 취소/환불
 - [ ] T310 [P] 테스트: 24h 전 취소→환불/CANCELLED/slot OPEN, 24h 이내 409, 비CONFIRMED 409, 재취소 멱등, 중복환불 방지, 비소유자 403
