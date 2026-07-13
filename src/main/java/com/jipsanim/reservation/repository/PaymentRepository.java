@@ -17,4 +17,9 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Payment p where p.id = :id")
     Optional<Payment> findByIdForUpdate(@Param("id") Long id);
+
+    /** 3차 취소: reservationId 로 Payment 를 먼저 잠금 (락 순서 P→R→V, 리뷰 P0-4) */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Payment p where p.reservationId = :reservationId")
+    Optional<Payment> findByReservationIdForUpdate(@Param("reservationId") Long reservationId);
 }

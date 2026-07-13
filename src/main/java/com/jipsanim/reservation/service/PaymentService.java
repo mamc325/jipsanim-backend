@@ -93,6 +93,9 @@ public class PaymentService {
         if (payment.isPaid()) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "확정된 결제는 실패 처리할 수 없습니다.");
         }
+        if (payment.isRefunded()) { // 3차: 환불된 결제는 실패 처리 불가 (리뷰 P0-5)
+            throw new BusinessException(ErrorCode.INVALID_STATE, "환불된 결제는 실패 처리할 수 없습니다.");
+        }
         payment.fail();
         reservation.expire();
         Long slotId = reservation.getVisitSlotId();

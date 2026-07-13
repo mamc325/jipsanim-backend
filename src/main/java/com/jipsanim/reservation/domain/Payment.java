@@ -65,6 +65,14 @@ public class Payment extends BaseTimeEntity {
         this.status = PaymentStatus.FAILED;
     }
 
+    /** 3차: 취소 환불. PAID→REFUNDED 만 허용, paidAt 유지(정산이 paidAt 에 의존). */
+    public void refund() {
+        if (this.status != PaymentStatus.PAID) {
+            throw new IllegalStateException("환불은 PAID 결제에만 가능합니다: " + this.status);
+        }
+        this.status = PaymentStatus.REFUNDED;
+    }
+
     public boolean isReady() {
         return status == PaymentStatus.READY;
     }
@@ -75,6 +83,14 @@ public class Payment extends BaseTimeEntity {
 
     public boolean isFailed() {
         return status == PaymentStatus.FAILED;
+    }
+
+    public boolean isRefunded() {
+        return status == PaymentStatus.REFUNDED;
+    }
+
+    public Long getRealtorId() {
+        return realtorId;
     }
 
     public boolean isOwnedBy(Long userId) {
