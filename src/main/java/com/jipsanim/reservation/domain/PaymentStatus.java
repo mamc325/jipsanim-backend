@@ -3,6 +3,6 @@ package com.jipsanim.reservation.domain;
 public enum PaymentStatus {
     READY,
     PAID,
-    FAILED
-    // CANCELLED, REFUNDED 은 3차
+    FAILED,
+    REFUNDED // 3차: 취소 시 PAID→REFUNDED
 }

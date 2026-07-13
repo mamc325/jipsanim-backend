@@ -69,6 +69,14 @@ public class VisitSlot extends BaseTimeEntity {
         this.status = VisitSlotStatus.RESERVED;
     }
 
+    /** 3차 취소 시 RESERVED→OPEN 재개방 (다른 사용자 재예약 허용) */
+    public void reopen() {
+        if (this.status != VisitSlotStatus.RESERVED) {
+            throw new IllegalStateException("재개방은 RESERVED 슬롯에만 가능합니다: " + this.status);
+        }
+        this.status = VisitSlotStatus.OPEN;
+    }
+
     public boolean isOwnedBy(Long realtorId) {
         return property != null && property.getRealtor().getId().equals(realtorId);
     }
