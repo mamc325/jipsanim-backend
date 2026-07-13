@@ -13,6 +13,7 @@
 - **상태 전이(부수효과 있음)**: 액션을 **명사형 서브리소스**로 두고 **POST**. `.../approval`, `.../rejection`, `.../submission`, `.../cancellation`, `.../confirmation`. (동사 URL + PATCH 금지)
 - **부수효과 없는 단순 플래그 갱신**: 리소스 `PATCH` (예: 알림 읽음 `PATCH /notifications/{id}`).
 - **잡/작업 실행**: "잡 리소스 생성" → `POST` 컬렉션, `202` + 잡 리소스 반환, `GET`으로 폴링.
+  - **예외(3차 정산 배치)**: `POST /admin/settlement-batch-jobs` 는 **동기 200** + 결과 카운트 반환(별도 job 엔티티 없음). 정본은 [`specs/003-refund-settlement/contracts/api-contract.md`](../specs/003-refund-settlement/contracts/api-contract.md).
 - **검색/필터**: 컬렉션에 쿼리 파라미터 (`GET /addresses?keyword=`).
 - **본인 스코프 조회**: `/me/...` (역할별 뷰 허용).
 

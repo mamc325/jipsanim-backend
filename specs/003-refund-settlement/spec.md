@@ -27,6 +27,8 @@
 - 정산액이 음수면 `payout=0`, 미차감분을 `carry_over_out` 에 기록 → 다음 달 `carry_over_in` 으로 시작 차감.
 
 ## 3. 계산식 (정산)
+**정산 대상 realtor(리뷰 P0-1)** = 당월 paidAt 결제 발생 realtor ∪ 당월 refundedAt 환불 발생 realtor ∪ **전월 carry_over_out > 0 인 realtor**. → 당월 결제/환불이 없어도 이월액이 남은 중개사는 정산을 생성해 이월을 이어간다.
+
 **이월(carry_over_in)을 먼저 차감한 뒤 수수료를 매긴다** — 음수 이월을 갚는 달에 과다 수수료 방지(리뷰 P0-1).
 ```
 total_payment   = Σ payment.amount        (status IN (PAID, REFUNDED), paidAt ∈ 월)
@@ -74,7 +76,7 @@ Settlement  : PENDING --관리자 확정--> CONFIRMED --지급--> PAID
 - **정산 상태 전이 멱등**(ALREADY_REVIEWED 재사용 안 함 — 검증 도메인 용어, 리뷰 P0-6):
   - confirmation: `PENDING→CONFIRMED`. 이미 `CONFIRMED/PAID` 재호출 → **200 현재 상태**. (그 외 없음)
   - payout: `CONFIRMED→PAID`. 이미 `PAID` 재호출 → **200 현재 상태**. `PENDING` → **409 INVALID_STATE**.
-- **취소 락 순서**: `Payment → Reservation → VisitSlot`. Payment 를 **reservationId 로 먼저 잠근다**(`findByReservationIdForUpdate`) — reservation 을 먼저 잠그지 않음(리뷰 P0-4).
+- **취소 락 순서**: `Payment → Reservation → VisitSlot`. Payment 를 **reservationId 로 먼저 잠근다**(`findByReservationIdForUpdate`) — reservation 을 먼저 잠그지 않음(리뷰 P0-4). **3개 잠금을 모두 확보한 뒤** 소유자/상태/24h 검증 → 그다음 변경(검증이 잠금 사이에 끼지 않음, 리뷰 P0-2).
 - **Clock 주입**: 취소 24h 판정·정산 월 계산은 주입된 `Clock` 사용(테스트 안정성, 리뷰 P1).
 - **Payment.refund()**: `PAID→REFUNDED` 만 허용, `paidAt` 유지(정산이 paidAt 에 의존). REFUNDED 상태에서 `/failure` 는 409(리뷰 P0-5, P1).
 

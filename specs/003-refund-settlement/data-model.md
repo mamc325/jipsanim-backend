@@ -59,10 +59,13 @@ reservation 1—0..1 refund (취소 시)
 
 ## 집계 쿼리 개요 (배치)
 ```
--- 대상 월(YYYY-MM)의 중개사별 결제/환불
+-- 대상 realtor 집합(합집합): 당월 결제 ∪ 당월 환불 ∪ 전월 carry_over_out>0
+--   (당월 결제/환불이 없어도 전월 이월이 남은 realtor 는 포함)
 결제: Σ payment.amount  WHERE status IN (PAID, REFUNDED) AND paidAt ∈ 월   GROUP BY realtor_id
 환불: Σ refund.refund_amount WHERE refundedAt ∈ 월                          GROUP BY realtor_id
-전월 carry_over_out → 당월 carry_over_in
+이월: SELECT realtor_id, carry_over_out FROM settlement
+        WHERE settlement_month = 전월 AND carry_over_out > 0            -- 당월 carry_over_in
+-- 결제/환불 없는 realtor 는 결제=환불=0, carry_over_in 만 반영
 ```
 > 결제는 paidAt 기준(환불되었어도 그 달엔 결제 발생), 환불은 refundedAt 월에 차감 → 월 경계 정확.
 
