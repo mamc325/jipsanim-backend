@@ -28,8 +28,8 @@
 - [x] T333 [P] 테스트: 확정/지급 상태전이 + 멱등(200 재호출)·PENDING payout 409
 
 ## Phase 5. 마감
-- [ ] T340 통합 E2E: 예약확정→취소→환불→정산 배치→집계 반영→확정/지급
-- [ ] T341 [P] docs/api-design 3차 갱신(/payments/{id}/refunds 제거), ROADMAP 3차 상태, 인수기준 체크
+- [x] T340 통합 E2E: 예약확정→취소→환불→정산 배치→집계 반영→확정/지급
+- [x] T341 [P] docs/api-design 3차 갱신, ROADMAP 3차 상태, 인수기준 체크, 진행상황 문서(docs/project-status.md)
 
 ## 의존성
 ```
