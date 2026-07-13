@@ -22,10 +22,10 @@
 - [x] T325 [P] 테스트: 배치 UNIQUE 중복정산 0, PENDING 재계산, **같은 realtor 이후월 존재→전체 409**(부분성공 없음), 이월 반영, **당월 결제/환불 없고 전월 carry_over_out>0 인 realtor 도 정산 생성**(P0-1)
 
 ## Phase 4. 정산 조회/확정/지급
-- [ ] T330 `GET /me/settlements`(REALTOR), `GET /admin/settlements`(ADMIN, month/realtor 필터)
-- [ ] T331 `POST /admin/settlements/{id}/confirmation`(PENDING→CONFIRMED, 멱등: CONFIRMED/PAID 재호출 200)
-- [ ] T332 `POST /admin/settlements/{id}/payout`(CONFIRMED→PAID, 멱등: PAID 재호출 200, PENDING 409)
-- [ ] T333 [P] 테스트: 확정/지급 상태전이 + 멱등(200 재호출)·PENDING payout 409
+- [x] T330 `GET /me/settlements`(REALTOR), `GET /admin/settlements`(ADMIN, month/realtor 필터)
+- [x] T331 `POST /admin/settlements/{id}/confirmation`(PENDING→CONFIRMED, 멱등: CONFIRMED/PAID 재호출 200)
+- [x] T332 `POST /admin/settlements/{id}/payout`(CONFIRMED→PAID, 멱등: PAID 재호출 200, PENDING 409)
+- [x] T333 [P] 테스트: 확정/지급 상태전이 + 멱등(200 재호출)·PENDING payout 409
 
 ## Phase 5. 마감
 - [ ] T340 통합 E2E: 예약확정→취소→환불→정산 배치→집계 반영→확정/지급
