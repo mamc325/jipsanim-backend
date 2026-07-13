@@ -14,12 +14,12 @@
 - [x] T313 [P] 통합: 취소 후 슬롯 재개방 → 다른 사용자 재예약 가능
 
 ## Phase 3. 정산 계산 + 배치
-- [ ] T320 [P] 테스트: `SettlementCalculator` — **이월 먼저 차감 후 수수료**(carry_over 갚는 달 과다수수료 없음, P0-1), floor 절사, 음수→carry_over_out, **월 경계(7월 결제→8월 환불)**
-- [ ] T321 `SettlementCalculator`(순수함수) — §3: `gross_available=결제-환불-carry_in`, `fee=floor(gross>0? gross*0.2:0)`, `payout=max(0,gross-fee)`, `carry_out=max(0,-gross)`
-- [ ] T322 집계 쿼리(결제 paidAt·환불 refundedAt 중개사별 합) + **대상 realtor 합집합**(결제∪환불∪전월 carry_over_out>0, P0-1) + 전월 carry_over_out 조회
-- [ ] T323 `SettlementBatchService.run(month)`(주입 Clock): 집계→**선검사(realtor별 이후월 존재→하나라도면 전체 409)**→계산→Settlement(PENDING) upsert. PENDING 재계산 갱신, CONFIRMED/PAID skip (P0-2)
-- [ ] T324 스케줄러(매월 1일 04:00, 테스트 비활성) + `POST /admin/settlement-batch-jobs`(**동기 200** + createdCount/updatedCount/skippedCount, P0-3)
-- [ ] T325 [P] 테스트: 배치 UNIQUE 중복정산 0, PENDING 재계산, **같은 realtor 이후월 존재→전체 409**(부분성공 없음), 이월 반영, **당월 결제/환불 없고 전월 carry_over_out>0 인 realtor 도 정산 생성**(P0-1)
+- [x] T320 [P] 테스트: `SettlementCalculator` — **이월 먼저 차감 후 수수료**(carry_over 갚는 달 과다수수료 없음, P0-1), floor 절사, 음수→carry_over_out, **월 경계(7월 결제→8월 환불)**
+- [x] T321 `SettlementCalculator`(순수함수) — §3: `gross_available=결제-환불-carry_in`, `fee=floor(gross>0? gross*0.2:0)`, `payout=max(0,gross-fee)`, `carry_out=max(0,-gross)`
+- [x] T322 집계 쿼리(결제 paidAt·환불 refundedAt 중개사별 합) + **대상 realtor 합집합**(결제∪환불∪전월 carry_over_out>0, P0-1) + 전월 carry_over_out 조회
+- [x] T323 `SettlementBatchService.run(month)`(주입 Clock): 집계→**선검사(realtor별 이후월 존재→하나라도면 전체 409)**→계산→Settlement(PENDING) upsert. PENDING 재계산 갱신, CONFIRMED/PAID skip (P0-2)
+- [x] T324 스케줄러(매월 1일 04:00, 테스트 비활성) + `POST /admin/settlement-batch-jobs`(**동기 200** + createdCount/updatedCount/skippedCount, P0-3)
+- [x] T325 [P] 테스트: 배치 UNIQUE 중복정산 0, PENDING 재계산, **같은 realtor 이후월 존재→전체 409**(부분성공 없음), 이월 반영, **당월 결제/환불 없고 전월 carry_over_out>0 인 realtor 도 정산 생성**(P0-1)
 
 ## Phase 4. 정산 조회/확정/지급
 - [ ] T330 `GET /me/settlements`(REALTOR), `GET /admin/settlements`(ADMIN, month/realtor 필터)
