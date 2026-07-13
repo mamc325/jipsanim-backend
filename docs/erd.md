@@ -23,7 +23,7 @@
 | price_standard_history | 1차 | ✅ | 기준 변경 이력 |
 | price_standard_batch_job | 1차 | ✅ | 배치 실행 결과 |
 | external_api_call_log | 1차 | ✅ | 외부 호출 이력(키 마스킹) |
-| visit_slot | 2차 | ⏳ | 방문 슬롯(OPEN/HELD/RESERVED) |
+| visit_slot | 2차 | ⏳ | 방문 슬롯(OPEN/RESERVED/CLOSED/EXPIRED — HELD 는 Redis 임시홀드, DB 상태 아님) |
 | reservation | 2차 | ⏳ | 방문 예약 |
 | payment | 2차 | ⏳ | Mock 결제 |
 | refund | 3차 | ⏳ | 환불 |

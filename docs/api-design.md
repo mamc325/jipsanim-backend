@@ -13,6 +13,7 @@
 - **상태 전이(부수효과 있음)**: 액션을 **명사형 서브리소스**로 두고 **POST**. `.../approval`, `.../rejection`, `.../submission`, `.../cancellation`, `.../confirmation`. (동사 URL + PATCH 금지)
 - **부수효과 없는 단순 플래그 갱신**: 리소스 `PATCH` (예: 알림 읽음 `PATCH /notifications/{id}`).
 - **잡/작업 실행**: "잡 리소스 생성" → `POST` 컬렉션, `202` + 잡 리소스 반환, `GET`으로 폴링.
+  - **예외(3차 정산 배치)**: `POST /admin/settlement-batch-jobs` 는 **동기 200** + 결과 카운트 반환(별도 job 엔티티 없음). 정본은 [`specs/003-refund-settlement/contracts/api-contract.md`](../specs/003-refund-settlement/contracts/api-contract.md).
 - **검색/필터**: 컬렉션에 쿼리 파라미터 (`GET /addresses?keyword=`).
 - **본인 스코프 조회**: `/me/...` (역할별 뷰 허용).
 
@@ -86,15 +87,18 @@
 
 > 결정 §6-3: 결제는 예약 생성 시 동시 생성 → **별도 `POST /reservations/{id}/payments` 없음.**
 
-### 3차 — 예약취소 / 환불 / 정산
+### 3차 — 예약취소 / 환불 / 정산 (`specs/003-refund-settlement`, **계약 확정**)
+정본: `specs/003-refund-settlement/contracts/api-contract.md`
 | Method | Path | 권한 |
 | --- | --- | --- |
-| POST | `/api/reservations/{id}/cancellation` | USER |
-| POST | `/api/payments/{id}/refunds` | USER (환불 생성) |
+| POST | `/api/reservations/{id}/cancellation` | USER (취소 **+ 환불 내부 생성**, 슬롯 OPEN 재개방) |
 | GET | `/api/me/settlements?month=` | REALTOR |
-| GET | `/api/admin/settlements?startDate&endDate` | ADMIN |
-| POST | `/api/admin/settlements/{id}/confirmation` | ADMIN |
-| POST | `/api/admin/settlements/{id}/payout` | ADMIN (지급 처리) |
+| POST | `/api/admin/settlement-batch-jobs` | ADMIN (월별 정산 배치) |
+| GET | `/api/admin/settlements?month=&realtorId=` | ADMIN |
+| POST | `/api/admin/settlements/{id}/confirmation` | ADMIN (PENDING→CONFIRMED) |
+| POST | `/api/admin/settlements/{id}/payout` | ADMIN (CONFIRMED→PAID) |
+
+> 결정 §2: 취소가 환불을 내부 생성 → **별도 `POST /payments/{id}/refunds` 없음.**
 
 ### 4차 — 알림 / Outbox
 | Method | Path | 권한 |
