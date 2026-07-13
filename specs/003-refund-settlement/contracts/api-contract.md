@@ -24,6 +24,7 @@
 
 ### GET /api/me/settlements?month=2026-07  [REALTOR]
 - `AuthUser.userId → Realtor` 매핑 후 `realtor_id` 로 조회(리뷰 P1).
+- 응답은 admin 과 동일한 `SettlementResponse`(본인 `realtorId` 포함 — 자기 id 라 무해, 단일 DTO 채택).
 ```json
 // content[] (month 미지정 시 전체):
 { "settlementId":3,"settlementMonth":"2026-07","totalPaymentAmount":500000,
