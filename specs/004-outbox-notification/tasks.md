@@ -15,10 +15,10 @@
 - [x] T413 [P] 테스트: append 2회(같은 event_key) → 이벤트 1건(producer 멱등); 같은 outbox_event 2회 dispatch → Notification 1건(소비 멱등)
 
 ## Phase 3. Worker + 폴링 + 백오프/DEAD
-- [ ] T420 `OutboxWorker.pollAndPublish()` — ①reaper(PROCESSING 타임아웃→PENDING) ②SKIP LOCKED 선점→PROCESSING(processing_started_at) ③dispatch→PUBLISHED/onFailure
-- [ ] T421 백오프/DEAD(onFailure **REQUIRES_NEW**): attempts<6 → PENDING+next_retry_at(`{1:1m,2:5m,3:15m,4:1h,5:6h}`), ≥6 → DEAD
-- [ ] T422 `OutboxPollingScheduler`(@Scheduled(fixedDelay=`outbox.worker-delay-ms`), `@ConditionalOnProperty(outbox.worker-enabled)` 테스트 비활성) + `OutboxProperties`(worker-delay-ms=2000, batch-size=50, reclaim-timeout-seconds=300)
-- [ ] T423 [P] 통합: 폴링 발행→Notification 생성+PUBLISHED, 발행 실패→재시도→DEAD, **PROCESSING reaper 복구**
+- [x] T420 `OutboxWorker.pollAndPublish()` — ①reaper(PROCESSING 타임아웃→PENDING) ②SKIP LOCKED 선점→PROCESSING(processing_started_at) ③dispatch→PUBLISHED/onFailure
+- [x] T421 백오프/DEAD(onFailure **REQUIRES_NEW**): attempts<6 → PENDING+next_retry_at(`{1:1m,2:5m,3:15m,4:1h,5:6h}`), ≥6 → DEAD
+- [x] T422 `OutboxPollingScheduler`(@Scheduled(fixedDelay=`outbox.worker-delay-ms`), `@ConditionalOnProperty(outbox.worker-enabled)` 테스트 비활성) + `OutboxProperties`(worker-delay-ms=2000, batch-size=50, reclaim-timeout-seconds=300)
+- [x] T423 [P] 통합: 폴링 발행→Notification 생성+PUBLISHED, 발행 실패→재시도→DEAD, **PROCESSING reaper 복구**
 
 ## Phase 4. 도메인 연결 + API
 - [ ] T430 도메인 적재(직접 append, event_key): confirm / cancel(2건) / payout / **매물 승인·거절(ApplicationEventPublisher→직접 append 이관, 기존 event/listener 정리)**
