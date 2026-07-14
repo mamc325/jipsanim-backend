@@ -55,6 +55,12 @@ reservation:
   sweep-interval-ms: ${RESERVATION_SWEEP_MS:2000}    # 만료 재발급 sweep 주기
   fee-amount: ${RESERVATION_FEE:10000}               # Mock 결제 금액(원)
 
+outbox:
+  worker-enabled: ${OUTBOX_WORKER_ENABLED:true}              # 폴링 Worker 활성(테스트 false)
+  worker-delay-ms: ${OUTBOX_WORKER_DELAY_MS:2000}            # 폴링 주기
+  batch-size: ${OUTBOX_BATCH_SIZE:50}                        # 선점 배치 크기(LIMIT)
+  reclaim-timeout-seconds: ${OUTBOX_RECLAIM_TIMEOUT_SEC:300} # PROCESSING 고착 복구 임계
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

@@ -69,6 +69,8 @@ tasks.named<Test>("test") {
 	useJUnitPlatform { excludeTags("load") }
 	// sweep 스케줄러는 테스트 중 비활성(결정적 검증). SweepService.sweep() 은 직접 호출해 검증.
 	systemProperty("reservation.sweep-enabled", "false")
+	// outbox 폴링 Worker 도 테스트 중 비활성. OutboxPoller.pollOnce() 를 직접 호출해 검증.
+	systemProperty("outbox.worker-enabled", "false")
 }
 
 // ./gradlew loadTest — 부하/벤치마크만 실행
