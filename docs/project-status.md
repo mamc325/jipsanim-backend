@@ -12,11 +12,11 @@ Spec Kit 워크플로우(constitution → spec → plan → data-model → contr
 | **1차 MVP** | 회원/권한, 외부 API 배치 수집, 시세 기준(p10~p90/IQR)·관리자 승인, 매물 등록·가격 리스크 검증, QueryDSL 조건 검색 | ✅ 구현 완료 |
 | **2차** | 방문 슬롯, Redis Sorted Set 대기열, TTL 예약권(원자적 발급), Mock 결제 확정, 예약 확정 | ✅ 구현 완료 |
 | **3차** | 예약 취소/환불(24h 전 전액·슬롯 재개방), 중개사 월별 정산(배치·수수료 20%·carry_over 이월) | ✅ 구현 완료 |
-| 4차 | Outbox Pattern(동일 커밋 적재·폴링 Worker), Mock 알림 비동기, 지수 백오프 재시도·DEAD·수동 재처리 | 🧩 설계 완료(구현 대기) |
+| **4차** | Outbox Pattern(동일 커밋 적재·폴링 Worker·SKIP LOCKED), Mock 알림 비동기, 지수 백오프 재시도·DEAD·수동 재처리, 이중 멱등 | ✅ 구현 완료 |
 | 5차 | Elasticsearch + nori 한글 검색 | ⏳ 예정 |
 | 6차 | Redis 캐싱/조회수, k6 부하, Sentry/Prometheus/Grafana, Docker/CI | ⏳ 예정 |
 
-**규모**: 프로덕션 Java 167개 파일, 테스트 92개(@Test). 3차 신규 20개 파일 · 테스트 32개.
+**규모**: 프로덕션 Java 189개 파일, 테스트 118개(@Test). 4차 신규(outbox+notification) 22개 파일 · 테스트 26개.
 
 ## 기술 스택
 
@@ -74,6 +74,21 @@ Spec Kit 워크플로우(constitution → spec → plan → data-model → contr
 **정합성 핵심**: 결제 paidAt·환불 refundedAt 기준 월 분리(월 경계 정확), UNIQUE 제약으로 중복 환불·중복 정산 0,
 음수 정산 carry_over 이월 연쇄, 상태전이 멱등.
 
-## 다음 단계 (4차)
+## 4차 Outbox 기반 비동기 알림 (구현 완료)
 
-Outbox Pattern 기반 알림 비동기 처리 — 정산 확정/취소 등 이벤트를 Outbox 에 적재 후 재시도 가능한 발행.
+설계: `specs/004-outbox-notification/` · 도메인 트랜잭션과 알림 발행의 원자성 분리(Constitution 원칙 IV)
+
+### Phase 1~5
+- **엔티티/상태**: `OutboxEvent`(event_key UNIQUE, processing_started_at, payload JSON) + `RetryPolicy`(백오프 1m·5m·15m·1h·6h, attempts≥6 DEAD), `Notification`(outbox_event_id UNIQUE)
+- **Producer**: 도메인 서비스가 같은 트랜잭션에서 `OutboxEventPublisher.append()` — native `INSERT ... ON DUPLICATE KEY UPDATE id=id` 로 producer 멱등(트랜잭션 오염 없이 중복 no-op)
+- **Consumer**: `NotificationDispatcher`(7종 렌더링) + `MockNotificationSender`(포트 분리), 소비 멱등(outbox_event_id)
+- **Worker**: 폴링 + `FOR UPDATE SKIP LOCKED` 선점 + `processing_started_at` reaper(고착 복구) + `REQUIRES_NEW` 실패 기록 → 지수 백오프/DEAD
+- **도메인 7종**: 예약 확정/취소/환불/정산 지급/매물 승인·반려/예약권 발급(best-effort, Redis INCR invitationSeq)
+- **API**: `/me/notifications`(조회·읽음), `/admin/outbox-events`(모니터링·DEAD 재처리)
+
+**신뢰성 핵심**: 적재는 도메인 커밋과 원자적(유령 알림 0), 이중 멱등(producer event_key + consumer outbox_event_id)으로 중복 알림 0,
+at-least-once + 지수 백오프 재시도 + DEAD 격리·수동 재처리. 알림 실패가 도메인 트랜잭션으로 전파되지 않음.
+
+## 다음 단계 (5차)
+
+Elasticsearch + nori 형태소 분석 기반 한글 매물 검색 — latency 가 아닌 검색 품질/관련도로 어필(Constitution VII).
