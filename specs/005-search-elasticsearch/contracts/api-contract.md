@@ -24,29 +24,32 @@
 | page / size | `0` / `20` | 페이지 |
 
 ```json
-// res 200 (Page<PropertySummaryResponse> — 1차 요약 DTO 재사용)
+// res 200 (Page<PropertySummaryResponse> — 1차 목록 DTO 그대로 재사용)
 {
   "content": [
     { "propertyId": 12, "title": "강남역 5분 풀옵션 오피스텔", "regionName": "강남구",
-      "dealType": "MONTHLY_RENT", "propertyType": "OFFICETEL",
-      "deposit": 10000000, "rent": 700000, "area": 33.0, "roomCount": 1, "status": "ACTIVE" }
+      "dealType": "MONTHLY_RENT", "deposit": 10000000, "monthlyRent": 700000,
+      "area": 33.0, "roomCount": 1, "primaryImageUrl": "https://..." }
   ],
   "page": 0, "size": 20, "totalElements": 1
 }
 ```
-- **랭킹**: `q` 있으면 `multi_match`(title^3, nearStation^2, regionName^2, description) 관련도(`_score`) 정렬. 없으면 `createdAt` desc.
+- 응답 DTO 는 기존 `PropertySummaryResponse`(propertyId·title·regionName·dealType·deposit·monthlyRent·area·roomCount·primaryImageUrl) **그대로** 재사용(목록과 일관, 리뷰 P1). propertyType/status/`_score` 노출이 필요하면 별도 `PropertySearchResponse` 정의(현재 범위 아님).
+- **랭킹/정렬(tie-breaker 포함, 리뷰 P2)**: `q` 있으면 `_score desc, createdAt desc, propertyId desc`. `q` 없으면 `createdAt desc, propertyId desc`. (숫자 `propertyId` 로 tie-break — 문자열 정렬 회피, 리뷰 P1)
+- **파라미터 검증(리뷰 P2)**: `minDeposit<=maxDeposit`, `minRent<=maxRent`, `minArea<=maxArea`, `page>=0`, `1<=size<=100`. 위반 시 400.
 - `q` 는 nori 형태소 분석 → "역세권"(복합어) 은 decompound(mixed)로 매칭.
 - 필터는 모두 `filter` 절(스코어 미반영). status=ACTIVE 강제.
+- **페이지네이션(리뷰 P2)**: `track_total_hits=true` 로 정확한 totalElements 반환. deep pagination 방지로 ES `from + size = page*size + size = (page+1)*size` 가 **max_result_window(10,000) 초과 시 400**(그 이상은 search_after 로 후속 차수).
 
 ---
 
 ## 색인(내부, API 아님)
-- 매물 승인/수정/비활성 → `OutboxEvent(PROPERTY_INDEX/UNINDEX)` → Worker → ES. **외부 API 없음**(원칙 IV, 부수효과).
+- 매물 **승인/비활성(ACTIVE 진입/이탈)** → `OutboxEvent(PROPERTY_INDEX/UNINDEX)` → Worker → ES. **외부 API 없음**(원칙 IV, 부수효과). 승인 알림(`PROPERTY_APPROVED`)은 4차 그대로 유지.
 
 ## 에러 코드
 | code | HTTP | 의미 |
 | --- | --- | --- |
-| VALIDATION_ERROR | 400 | 잘못된 range/enum 파라미터 |
-| (ES 장애) | 503/500 | 검색 인프라 불가 시 |
+| VALIDATION_ERROR | 400 | min>max(deposit/rent/area), page<0, size 범위(1~100) 위반, `(page+1)*size > 10000` |
+| **SEARCH_UNAVAILABLE** | 503 | ES 장애/타임아웃 (신규 ErrorCode 추가, 리뷰 P2) |
 
 > 5차는 도메인 API 계약을 바꾸지 않는다 — 검색 엔드포인트 추가 + Outbox 색인(비동기).
