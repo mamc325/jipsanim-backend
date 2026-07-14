@@ -22,10 +22,10 @@
 - [ ] T523 [P] 통합(ES): 승인→Outbox→핸들러 색인→ES 문서 존재; ACTIVE softDelete→삭제 (반복 전이 E2E 는 hide/unhide 도입 시로 이연)
 
 ## Phase 4. 검색 서비스 + 엔드포인트
-- [ ] T530 `PropertyEsSearchCondition` + `PropertySearchEsService`(NativeQuery: multi_match 부스팅 + filter, status=ACTIVE, **track_total_hits=true**)
-- [ ] T531 `GET /api/properties/search` 컨트롤러(@ConditionalOnProperty, q + 필터 + 페이지) → PropertySummaryResponse 매핑. **검증(리뷰 P2)**: `minDeposit<=maxDeposit`·`minRent<=maxRent`·`minArea<=maxArea`·`page>=0`·`1<=size<=100`·`(page+1)*size>10000`→400. 정렬 tie-breaker(propertyId desc). **SecurityConfig permitAll 에 `/api/properties/search` 명시(리뷰 P3)**
-- [ ] T532 `ErrorCode.SEARCH_UNAVAILABLE`(503) 추가 + ES 예외 핸들링(GlobalExceptionHandler) — 리뷰 P2
-- [ ] T533 [P] 통합: 관련도(부스팅 순위), 복합어 decompound("역세권"), 필터+q 조합, q 없을 때 최신순
+- [x] T530 `PropertyEsSearchCondition` + `PropertySearchEsService`(NativeQuery: multi_match 부스팅 + filter, status=ACTIVE, **track_total_hits=true**)
+- [x] T531 `GET /api/properties/search` 컨트롤러(@ConditionalOnProperty, q + 필터 + 페이지) → PropertySummaryResponse 매핑. **검증(리뷰 P2)**: `minDeposit<=maxDeposit`·`minRent<=maxRent`·`minArea<=maxArea`·`page>=0`·`1<=size<=100`·`(page+1)*size>10000`→400. 정렬 tie-breaker(propertyId desc). **SecurityConfig permitAll 에 `/api/properties/search` 명시(리뷰 P3)**
+- [x] T532 `ErrorCode.SEARCH_UNAVAILABLE`(503) 추가 + ES 예외 핸들링(BusinessException→GlobalExceptionHandler) — 리뷰 P2
+- [x] T533 [P] 통합: 관련도(부스팅 순위·DELETED 제외), 복합어 decompound(부분어 "전력"→"한국전력공사"; "역세권"은 접미사 XSN 필터로 원형 미보존이라 부적합), 필터+q 조합(JEONSE 제외), q 없을 때 최신순 3건, 검증 400(size>100·deep pagination)
 
 ## Phase 5. 마감
 - [ ] T540 통합 E2E: 매물 승인→색인→검색 노출→비활성→삭제→검색 제외

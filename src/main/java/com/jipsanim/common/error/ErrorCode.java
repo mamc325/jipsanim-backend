@@ -32,10 +32,11 @@ public enum ErrorCode {
     // 422
     INSUFFICIENT_DATA_APPROVAL_BLOCKED(HttpStatus.UNPROCESSABLE_ENTITY, "표본이 부족한 후보는 승인할 수 없습니다."),
 
-    // 500 / 502
+    // 500 / 502 / 503
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
     EXTERNAL_ADDRESS_API_ERROR(HttpStatus.BAD_GATEWAY, "주소 조회 서비스 호출에 실패했습니다."),
-    EXTERNAL_REAL_ESTATE_API_ERROR(HttpStatus.BAD_GATEWAY, "실거래가 조회 서비스 호출에 실패했습니다.");
+    EXTERNAL_REAL_ESTATE_API_ERROR(HttpStatus.BAD_GATEWAY, "실거래가 조회 서비스 호출에 실패했습니다."),
+    SEARCH_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "검색 서비스를 일시적으로 사용할 수 없습니다.");
 
     private final HttpStatus httpStatus;
     private final String defaultMessage;
