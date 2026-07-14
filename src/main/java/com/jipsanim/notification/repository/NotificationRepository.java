@@ -13,4 +13,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     /** 소비 멱등: 이미 발행된 이벤트인지 확인. */
     boolean existsByOutboxEventId(Long outboxEventId);
+
+    long countByOutboxEventId(Long outboxEventId);
 }

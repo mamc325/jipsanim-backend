@@ -32,4 +32,23 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> 
     int reclaimStuck(@Param("cutoff") LocalDateTime cutoff);
 
     Page<OutboxEvent> findByStatus(OutboxStatus status, Pageable pageable);
+
+    long countByEventKey(String eventKey);
+
+    /**
+     * Producer 멱등 적재: event_key 중복이면 `ON DUPLICATE KEY UPDATE id=id` 로 no-op.
+     * 예외를 던지지 않아 도메인 트랜잭션이 rollback-only 로 오염되지 않는다(리뷰 P1).
+     * created_at/updated_at 은 native insert 라 직접 채운다(auditing 우회).
+     */
+    @Modifying
+    @Query(value = "INSERT INTO outbox_event "
+            + "(aggregate_type, aggregate_id, event_type, event_key, payload, status, attempts, next_retry_at, created_at, updated_at) "
+            + "VALUES (:aggregateType, :aggregateId, :eventType, :eventKey, :payload, 'PENDING', 0, :now, :now, :now) "
+            + "ON DUPLICATE KEY UPDATE id = id", nativeQuery = true)
+    void appendIgnoringDuplicate(@Param("aggregateType") String aggregateType,
+                                 @Param("aggregateId") Long aggregateId,
+                                 @Param("eventType") String eventType,
+                                 @Param("eventKey") String eventKey,
+                                 @Param("payload") String payload,
+                                 @Param("now") LocalDateTime now);
 }

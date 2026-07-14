@@ -9,10 +9,10 @@
 - [x] T403 [P] 테스트: 상태전이(PENDING→PROCESSING→PUBLISHED/DEAD, 재시도 PENDING), 백오프 계산(attempts→delay, ≥6 DEAD)
 
 ## Phase 2. Producer + Dispatcher + Sender(멱등)
-- [ ] T410 `OutboxEventPublisher.append(type, aggId, eventType, **eventKey**, payload)` — 도메인 트랜잭션 내 적재. **native `INSERT ... ON DUPLICATE KEY UPDATE id=id`(no-op) 로 고정** — event_key 중복을 예외 없이 흡수(트랜잭션 오염 방지, 리뷰 P1). `INSERT IGNORE`(오류 은폐)·JPA save+catch 지양
-- [ ] T411 `NotificationSender`(인터페이스) + `MockNotificationSender`(notification 저장 + 로그)
-- [ ] T412 `NotificationDispatcher` — eventType→수신자/제목/메시지 렌더링, **소비 멱등**(outbox_event_id UNIQUE → 중복 skip)
-- [ ] T413 [P] 테스트: append 2회(같은 event_key) → 이벤트 1건(producer 멱등); 같은 outbox_event 2회 dispatch → Notification 1건(소비 멱등)
+- [x] T410 `OutboxEventPublisher.append(type, aggId, eventType, **eventKey**, payload)` — 도메인 트랜잭션 내 적재. **native `INSERT ... ON DUPLICATE KEY UPDATE id=id`(no-op) 로 고정** — event_key 중복을 예외 없이 흡수(트랜잭션 오염 방지, 리뷰 P1). `INSERT IGNORE`(오류 은폐)·JPA save+catch 지양
+- [x] T411 `NotificationSender`(인터페이스) + `MockNotificationSender`(notification 저장 + 로그)
+- [x] T412 `NotificationDispatcher` — eventType→수신자/제목/메시지 렌더링, **소비 멱등**(outbox_event_id UNIQUE → 중복 skip)
+- [x] T413 [P] 테스트: append 2회(같은 event_key) → 이벤트 1건(producer 멱등); 같은 outbox_event 2회 dispatch → Notification 1건(소비 멱등)
 
 ## Phase 3. Worker + 폴링 + 백오프/DEAD
 - [ ] T420 `OutboxWorker.pollAndPublish()` — ①reaper(PROCESSING 타임아웃→PENDING) ②SKIP LOCKED 선점→PROCESSING(processing_started_at) ③dispatch→PUBLISHED/onFailure
