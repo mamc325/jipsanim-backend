@@ -21,10 +21,13 @@ public class SettlementService {
 
     private final SettlementRepository settlementRepository;
     private final RealtorRepository realtorRepository;
+    private final com.jipsanim.outbox.publisher.OutboxEventPublisher outbox;
 
-    public SettlementService(SettlementRepository settlementRepository, RealtorRepository realtorRepository) {
+    public SettlementService(SettlementRepository settlementRepository, RealtorRepository realtorRepository,
+                             com.jipsanim.outbox.publisher.OutboxEventPublisher outbox) {
         this.settlementRepository = settlementRepository;
         this.realtorRepository = realtorRepository;
+        this.outbox = outbox;
     }
 
     /** /me/settlements — AuthUser.userId → Realtor 매핑 후 realtor_id 로 조회 (리뷰 P1). */
@@ -67,6 +70,13 @@ public class SettlementService {
             throw new BusinessException(ErrorCode.INVALID_STATE, "확정되지 않은 정산은 지급할 수 없습니다.");
         }
         s.payout(); // CONFIRMED → PAID
+        realtorRepository.findById(s.getRealtorId()).ifPresent(realtor ->
+                outbox.append("SETTLEMENT", s.getId(), "SETTLEMENT_PAID",
+                        "SETTLEMENT_PAID:" + s.getId(),
+                        java.util.Map.of("recipientUserId", realtor.getUser().getId(),
+                                "settlementId", s.getId(),
+                                "settlementMonth", s.getSettlementMonth(),
+                                "payoutAmount", s.getPayoutAmount())));
         return SettlementResponse.from(s);
     }
 }

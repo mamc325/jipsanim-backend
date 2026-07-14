@@ -87,7 +87,7 @@ class SettlementE2EIntegrationTest {
     void fullLifecycle() throws Exception {
         int n = SEQ.incrementAndGet();
         // --- 중개사/매물/슬롯(24h 이후 2개) ---
-        User realtorUser = userRepository.save(User.create("e2e.realtor" + n + "@test.com", "pw", "r", Role.REALTOR));
+        User realtorUser = userRepository.save(User.create("settle.e2e.realtor" + n + "@test.com", "pw", "r", Role.REALTOR));
         Realtor realtor = realtorRepository.save(Realtor.create(realtorUser, "공인", "010"));
         long realtorId = realtor.getId();
         String realtorTk = jwt.createAccessToken(realtorUser.getId(), Role.REALTOR);
@@ -102,8 +102,8 @@ class SettlementE2EIntegrationTest {
         long slot2 = slotRepository.save(VisitSlot.create(property, base.plusHours(1), base.plusHours(1).plusMinutes(30))).getId();
 
         // --- 두 사용자 예약+결제 확정 ---
-        String u1 = userToken("e2e.u1." + n + "@test.com");
-        String u2 = userToken("e2e.u2." + n + "@test.com");
+        String u1 = userToken("settle.e2e.u1." + n + "@test.com");
+        String u2 = userToken("settle.e2e.u2." + n + "@test.com");
         long payment1 = reserveConfirm(slot1, u1);
         reserveConfirm(slot2, u2);
 
@@ -124,7 +124,7 @@ class SettlementE2EIntegrationTest {
                 LocalDateTime.of(2022, 3, 15, 10, 0), realtorId);
 
         // --- 관리자 배치 실행 ---
-        String admin = adminToken("e2e.admin" + n + "@test.com");
+        String admin = adminToken("settle.e2e.admin" + n + "@test.com");
         mockMvc.perform(post("/api/admin/settlement-batch-jobs")
                         .header("Authorization", "Bearer " + admin)
                         .contentType("application/json").content("{\"month\":\"" + MONTH + "\"}"))

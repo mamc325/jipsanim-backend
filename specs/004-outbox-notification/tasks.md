@@ -21,15 +21,15 @@
 - [x] T423 [P] 통합: 폴링 발행→Notification 생성+PUBLISHED, 발행 실패→재시도→DEAD, **PROCESSING reaper 복구**
 
 ## Phase 4. 도메인 연결 + API
-- [ ] T430 도메인 적재(직접 append, event_key): confirm / cancel(2건) / payout / **매물 승인·거절(ApplicationEventPublisher→직접 append 이관, 기존 event/listener 정리)**
-- [ ] T431 예약권 발급 `WAITING_QUEUE_INVITATION_GRANTED` 적재(best-effort):
+- [x] T430 도메인 적재(직접 append, event_key): confirm / cancel(2건) / payout / **매물 승인·거절(ApplicationEventPublisher→직접 append 이관, 기존 event/listener 정리)**
+- [x] T431 예약권 발급 `WAITING_QUEUE_INVITATION_GRANTED` 적재(best-effort):
   - `try_issue.lua`: 발급 성공 시 `INCR invitation:{slotId}` → **`{userId, invitationSeq}` 반환**(현재 userId 단일 반환 변경)
   - `WaitingQueueService.tryIssue()` 반환 `Long` → **`IssuedInvitation(userId, invitationSeq)`** 값 객체로 변경
   - 발급 감지 지점에서 짧은 트랜잭션 append, `event_key=WAITING_QUEUE_INVITATION_GRANTED:{slotId}:{userId}:{invitationSeq}`
-- [ ] T431b **기존 대기열 코드/테스트 수정**: `tryIssue` 호출부(WaitingService 등) + `WaitingQueueIntegrationTest`/`SweepIntegrationTest` 등 반환타입 변경 반영
-- [ ] T432 `GET /me/notifications`(unread 필터) + `PATCH /notifications/{id}`(읽음, 본인 검증)
-- [ ] T433 `GET /admin/outbox-events`(status 필터) + `POST /admin/outbox-events/{id}/reprocess`(DEAD→PENDING, 아니면 409)
-- [ ] T434 [P] 테스트: 도메인 커밋→이벤트 적재, 롤백→미적재(원자성); 읽음/재처리 상태전이·권한(403)
+- [x] T431b **기존 대기열 코드/테스트 수정**: `tryIssue` 호출부(WaitingService 등) + `WaitingQueueIntegrationTest`/`SweepIntegrationTest` 등 반환타입 변경 반영
+- [x] T432 `GET /me/notifications`(unread 필터) + `PATCH /notifications/{id}`(읽음, 본인 검증)
+- [x] T433 `GET /admin/outbox-events`(status 필터) + `POST /admin/outbox-events/{id}/reprocess`(DEAD→PENDING, 아니면 409)
+- [x] T434 [P] 테스트: 도메인 커밋→이벤트 적재, 롤백→미적재(원자성); 읽음/재처리 상태전이·권한(403)
 
 ## Phase 5. 마감
 - [ ] T440 통합 E2E: 예약 확정→OutboxEvent→Worker 발행→Notification→/me 조회→읽음

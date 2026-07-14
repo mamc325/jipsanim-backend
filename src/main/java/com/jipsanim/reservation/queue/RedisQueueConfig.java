@@ -7,6 +7,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.script.RedisScript;
 
+import java.util.List;
+
 /**
  * 대기열/예약권 Lua 스크립트 빈. (원자적 진입/발급/소유자 삭제)
  */
@@ -20,8 +22,9 @@ public class RedisQueueConfig {
     }
 
     @Bean
-    public RedisScript<String> tryIssueScript() {
-        return RedisScript.of(new ClassPathResource("lua/try_issue.lua"), String.class);
+    @SuppressWarnings("rawtypes")
+    public RedisScript<List> tryIssueScript() {
+        return RedisScript.of(new ClassPathResource("lua/try_issue.lua"), List.class);
     }
 
     @Bean

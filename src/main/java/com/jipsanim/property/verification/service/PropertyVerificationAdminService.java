@@ -6,15 +6,15 @@ import com.jipsanim.property.domain.Property;
 import com.jipsanim.property.repository.PropertyRepository;
 import com.jipsanim.property.verification.domain.PropertyVerification;
 import com.jipsanim.property.verification.dto.VerificationDecisionResponse;
-import com.jipsanim.property.verification.event.PropertyApprovedEvent;
-import com.jipsanim.property.verification.event.PropertyRejectedEvent;
 import com.jipsanim.property.verification.repository.PropertyVerificationRepository;
-import org.springframework.context.ApplicationEventPublisher;
+import com.jipsanim.outbox.publisher.OutboxEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
+
 /**
- * 관리자 매물 승인/반려 (FR-050). 승인 시 ACTIVE 전이 + 도메인 이벤트 발행(4차 Outbox 대비, plan D6).
+ * 관리자 매물 승인/반려 (FR-050). 승인/반려 시 같은 트랜잭션에 Outbox 이벤트 적재(4차, 직접 append).
  * 이미 처리된 건은 멱등 처리(ALREADY_REVIEWED).
  */
 @Service
@@ -22,14 +22,14 @@ public class PropertyVerificationAdminService {
 
     private final PropertyVerificationRepository verificationRepository;
     private final PropertyRepository propertyRepository;
-    private final ApplicationEventPublisher eventPublisher;
+    private final OutboxEventPublisher outbox;
 
     public PropertyVerificationAdminService(PropertyVerificationRepository verificationRepository,
                                             PropertyRepository propertyRepository,
-                                            ApplicationEventPublisher eventPublisher) {
+                                            OutboxEventPublisher outbox) {
         this.verificationRepository = verificationRepository;
         this.propertyRepository = propertyRepository;
-        this.eventPublisher = eventPublisher;
+        this.outbox = outbox;
     }
 
     @Transactional
@@ -38,7 +38,9 @@ public class PropertyVerificationAdminService {
         verification.approve(adminUserId);
         Property property = findProperty(verification.getPropertyId());
         property.approve();
-        eventPublisher.publishEvent(new PropertyApprovedEvent(property.getId()));
+        outbox.append("PROPERTY", property.getId(), "PROPERTY_APPROVED",
+                "PROPERTY_APPROVED:" + property.getId(),
+                Map.of("recipientUserId", property.getRealtor().getUser().getId(), "propertyId", property.getId()));
         return decision(verification, property);
     }
 
@@ -48,7 +50,10 @@ public class PropertyVerificationAdminService {
         verification.reject(adminUserId, reason);
         Property property = findProperty(verification.getPropertyId());
         property.reject();
-        eventPublisher.publishEvent(new PropertyRejectedEvent(property.getId(), reason));
+        outbox.append("PROPERTY", property.getId(), "PROPERTY_REJECTED",
+                "PROPERTY_REJECTED:" + property.getId(),
+                Map.of("recipientUserId", property.getRealtor().getUser().getId(),
+                        "propertyId", property.getId(), "reason", reason == null ? "" : reason));
         return decision(verification, property);
     }
 

@@ -2,6 +2,7 @@ package com.jipsanim.reservation.waiting;
 
 import com.jipsanim.common.error.BusinessException;
 import com.jipsanim.common.error.ErrorCode;
+import com.jipsanim.reservation.queue.IssuedInvitation;
 import com.jipsanim.reservation.queue.WaitingQueueService;
 import com.jipsanim.reservation.slot.domain.VisitSlot;
 import com.jipsanim.reservation.slot.domain.VisitSlotStatus;
@@ -19,10 +20,13 @@ public class WaitingService {
 
     private final WaitingQueueService queue;
     private final VisitSlotRepository slotRepository;
+    private final InvitationEventRecorder invitationEventRecorder;
 
-    public WaitingService(WaitingQueueService queue, VisitSlotRepository slotRepository) {
+    public WaitingService(WaitingQueueService queue, VisitSlotRepository slotRepository,
+                          InvitationEventRecorder invitationEventRecorder) {
         this.queue = queue;
         this.slotRepository = slotRepository;
+        this.invitationEventRecorder = invitationEventRecorder;
     }
 
     public WaitingEntryResponse enter(Long slotId, Long userId) {
@@ -57,11 +61,15 @@ public class WaitingService {
         return new WaitingStatusResponse(slotId, rank, false, 0);
     }
 
-    /** slot 이 OPEN 이면 발급 시도, 아니면 Redis(토큰/큐/active-set) 정리. sweep 도 사용. */
-    public Long tryIssueIfSlotOpen(Long slotId) {
+    /** slot 이 OPEN 이면 발급 시도(발급 시 알림 이벤트 적재), 아니면 Redis 정리. sweep 도 사용. */
+    public IssuedInvitation tryIssueIfSlotOpen(Long slotId) {
         VisitSlot slot = slotRepository.findById(slotId).orElse(null);
         if (slot != null && slot.getStatus() == VisitSlotStatus.OPEN) {
-            return queue.tryIssue(slotId);
+            IssuedInvitation invitation = queue.tryIssue(slotId);
+            if (invitation != null) {
+                invitationEventRecorder.record(slotId, invitation); // best-effort 적재
+            }
+            return invitation;
         }
         queue.cleanupSlot(slotId);
         return null;

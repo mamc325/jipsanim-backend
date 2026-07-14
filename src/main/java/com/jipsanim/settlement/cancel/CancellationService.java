@@ -32,17 +32,20 @@ public class CancellationService {
     private final ReservationRepository reservationRepository;
     private final VisitSlotRepository slotRepository;
     private final RefundRepository refundRepository;
+    private final com.jipsanim.outbox.publisher.OutboxEventPublisher outbox;
     private final Clock clock;
 
     public CancellationService(PaymentRepository paymentRepository,
                                ReservationRepository reservationRepository,
                                VisitSlotRepository slotRepository,
                                RefundRepository refundRepository,
+                               com.jipsanim.outbox.publisher.OutboxEventPublisher outbox,
                                Clock clock) {
         this.paymentRepository = paymentRepository;
         this.reservationRepository = reservationRepository;
         this.slotRepository = slotRepository;
         this.refundRepository = refundRepository;
+        this.outbox = outbox;
         this.clock = clock;
     }
 
@@ -78,6 +81,14 @@ public class CancellationService {
         payment.refund();              // PAID → REFUNDED (paidAt 유지)
         reservation.cancel();          // CONFIRMED → CANCELLED (active_reservation_key=null)
         slot.reopen();                 // RESERVED → OPEN (재예약 허용)
+
+        outbox.append("RESERVATION", reservationId, "VISIT_RESERVATION_CANCELLED",
+                "VISIT_RESERVATION_CANCELLED:" + reservationId,
+                java.util.Map.of("recipientUserId", userId, "reservationId", reservationId));
+        outbox.append("PAYMENT", payment.getId(), "REFUND_COMPLETED",
+                "REFUND_COMPLETED:" + payment.getId(),
+                java.util.Map.of("recipientUserId", userId, "paymentId", payment.getId(),
+                        "refundAmount", refund.getRefundAmount()));
 
         return response(reservation, payment, slot, refund.getRefundAmount());
     }
