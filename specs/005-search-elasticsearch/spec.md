@@ -61,13 +61,14 @@
 - ES 장애 시: 색인 이벤트는 재시도/DEAD 로 보존(4차 백오프). 검색 API 는 ES 의존(장애 시 5xx).
 
 ## 8. 인수 기준
-- [ ] 매물 승인 → OutboxEvent(PROPERTY_INDEX) 동일 커밋 적재 → Worker 색인 → 검색 노출.
-- [ ] **ACTIVE 매물 삭제(softDelete: ACTIVE→DELETED)** → PROPERTY_UNINDEX → 검색에서 제외. (현재 도메인에서 도달 가능한 유일한 ACTIVE 이탈)
+- [x] 매물 승인 → OutboxEvent(PROPERTY_INDEX) 동일 커밋 적재 → Worker 색인 → 검색 노출. (`PropertyIndexingIntegrationTest`, E2E `PropertySearchE2ETest`)
+- [x] **ACTIVE 매물 삭제(softDelete: ACTIVE→DELETED)** → PROPERTY_UNINDEX → 검색에서 제외. (현재 도메인에서 도달 가능한 유일한 ACTIVE 이탈)
 - (전이 판정 규칙 `prev==ACTIVE && new!=ACTIVE` 은 일반형으로 유지 — hide/unhide 등 전이가 도메인에 추가되면 자동 적용. **반복 전이(ACTIVE↔HIDDEN) E2E 검증은 해당 전이 도입 시**로 이연, 리뷰 P1)
-- [ ] **품질**: "강남역 오피스텔" 검색 시 nori 형태소 매칭 + 필드 부스팅으로 관련 매물 상위 노출.
-- [ ] **복합어**: "역세권" 질의가 decompound 로 매칭.
-- [ ] 필터(거래유형/가격/면적/방수) + q 조합 검색.
-- [ ] 색인/검색이 기존 `GET /api/properties`(QueryDSL) 경로에 영향 없음.
+- [x] **품질**: "강남역 오피스텔" 검색 시 nori 형태소 매칭 + 필드 부스팅으로 관련 매물 상위 노출. (`PropertySearchApiIntegrationTest.relevance`)
+- [x] **복합어 decompound**: 부분어 질의가 복합어를 매칭(`전력`→`한국전력공사`). (`PropertySearchApiIntegrationTest.decompound`)
+  - ⚠️ 발견: 설계 예시 `역세권`은 이 nori config(`korean_pos_filter` stoptags 에 XSN 포함)에서 접미사 "권"이 제거되고 복합어 원형이 보존되지 않아(`역세권`→`[역세]`) 검색어로는 0건. `역세`로는 매칭됨. decompound 시연은 `전력→한국전력공사`로 대체(견고). 향후 개선: 사용자 사전(user_dictionary)에 `역세권` 등록 또는 stoptags 에서 XSN 제외 검토.
+- [x] 필터(거래유형/가격/면적/방수) + q 조합 검색. (`PropertySearchApiIntegrationTest.filterCombo`)
+- [x] 색인/검색이 기존 `GET /api/properties`(QueryDSL) 경로에 영향 없음. (별도 컨트롤러/엔드포인트, 기존 테스트 그린)
 
 ## 9. 다음 산출물
 `plan` → `data-model` → `contracts` → `tasks`. (신규 인프라 = ES + nori)

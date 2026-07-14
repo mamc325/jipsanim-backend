@@ -2,14 +2,14 @@
 
 > 부동산(오피스텔) 매물 검증 + 방문 예약/정산 + 알림 백엔드. 실제 구현 기준 명세.
 
-## 📌 총 API 개수 (39개)
+## 📌 총 API 개수 (40개)
 
 | 도메인 | API 개수 |
 | --- | --- |
 | 인증/회원 | 3개 |
 | 주소 검색 | 1개 |
 | 매물 (중개사) | 4개 |
-| 매물 조회 (사용자) | 2개 |
+| 매물 조회 (사용자) | 3개 (조건검색·상세·전문검색) |
 | 방문 슬롯 | 3개 |
 | 대기열 / 예약 / 결제 | 6개 |
 | 예약 취소/환불 | 1개 |
@@ -110,7 +110,7 @@ GET /api/me/notifications   (내 알림)
 - 로그인(`POST /api/auth/login`) 시 **JWT Access Token** 발급 → 이후 요청은 `Authorization: Bearer {accessToken}`.
 - 인증 필터가 토큰을 검증해 `AuthUser(userId, role)`를 주입. Stateless(세션 없음).
 - 권한: `@PreAuthorize("hasRole('...')")` + `/api/admin/**`는 SecurityConfig에서 `ADMIN` 강제.
-- **공개(비인증) 경로**: `/api/auth/**`, `GET /api/properties`·`/api/properties/*`·`/api/properties/*/visit-slots`, Swagger, `/actuator/health`.
+- **공개(비인증) 경로**: `/api/auth/**`, `GET /api/properties`·`/api/properties/search`·`/api/properties/*`·`/api/properties/*/visit-slots`, Swagger, `/actuator/health`.
 
 **JWT 페이로드 예시**
 
@@ -177,6 +177,7 @@ GET /api/me/notifications   (내 알림)
 | 500 | `INTERNAL_ERROR` | 서버 내부 오류 |
 | 502 | `EXTERNAL_ADDRESS_API_ERROR` | 주소 조회 서비스 실패 |
 | 502 | `EXTERNAL_REAL_ESTATE_API_ERROR` | 실거래가 조회 서비스 실패 |
+| 503 | `SEARCH_UNAVAILABLE` | Elasticsearch 장애로 전문검색 일시 중단(5차) |
 
 ---
 
@@ -685,6 +686,65 @@ GET /api/properties/{propertyId}
 | Status | Error Code | 설명 |
 | --- | --- | --- |
 | 404 | NOT_FOUND | 매물 없음 |
+
+---
+
+### 4.3 매물 전문검색 (Elasticsearch + nori · 5차)
+
+```
+GET /api/properties/search?q=&sigunguCode=&dealType=&propertyType=&minDeposit=&maxDeposit=&minRent=&maxRent=&minArea=&maxArea=&roomCount=&page=0&size=20
+```
+
+- **설계 근거**
+    - `q` 한글 형태소(nori) 전문검색 + 필드 부스팅으로 **관련도 순** 결과. 조건 검색(4.1, QueryDSL)과 **별도 엔드포인트로 공존** — 4.1 은 정확 필터, 4.3 은 자연어 검색.
+    - 색인은 4차 Outbox 재사용(매물 승인 시 `PROPERTY_INDEX`, ACTIVE 이탈 시 `PROPERTY_UNINDEX`) → DB↔ES 정합성을 커밋 원자성 + 이중 멱등으로 보장. 검색은 항상 `status=ACTIVE`만 노출.
+    - 공개 API(비로그인 조회 허용).
+- **설계 결정 사항**
+    - `q` multi_match 부스팅: `title^3` · `nearStation^2` · `regionName^2` · `description`. 나머지 파라미터는 필터(스코어 미반영).
+    - analyzer `korean_nori`: `nori_tokenizer(decompound_mode=mixed)` + `korean_pos_filter`(조사/접미사 등 stoptags 제거). 복합어는 부분어로도 매칭(예: `전력` → `한국전력공사`).
+    - 정렬 tie-breaker: `q` 있으면 `_score → createdAt desc → propertyId desc`, `q` 없으면 `createdAt desc → propertyId desc`(최신순). `track_total_hits=true`로 정확한 총건수.
+    - 검증(400): `min<=max`(보증금/월세/면적), `page>=0`, `1<=size<=100`, `(page+1)*size<=10000`(deep pagination 차단).
+    - ES 장애 시 `SEARCH_UNAVAILABLE`(503)로 격리 — 조건 검색(4.1) 경로에 무영향.
+
+**Query Parameters (모두 optional)**
+
+| 파라미터 | 타입 | 설명 |
+| --- | --- | --- |
+| q | string | 전문검색어(형태소 분석·부스팅). 없으면 필터만 적용·최신순 |
+| sigunguCode | string | 시군구 코드(term 필터) |
+| dealType | string | JEONSE, MONTHLY_RENT |
+| propertyType | string | OFFICETEL |
+| minDeposit / maxDeposit | number | 보증금 범위 |
+| minRent / maxRent | number | 월세 범위 |
+| minArea / maxArea | number | 면적 범위 |
+| roomCount | number | 방 개수 |
+| page / size | - | 페이지네이션(`size` 1~100, `(page+1)*size<=10000`) |
+
+**Response 200** (`data` = Spring Page, `content` 은 4.1 과 동일한 `PropertySummaryResponse`)
+
+```json
+{
+  "success": true,
+  "data": {
+    "content": [
+      {
+        "propertyId": 12, "title": "강남역 5분 풀옵션 오피스텔", "regionName": "강남구",
+        "dealType": "MONTHLY_RENT", "deposit": 10000000, "monthlyRent": 700000,
+        "area": 33.0, "roomCount": 1, "primaryImageUrl": "https://cdn.example.com/1.jpg"
+      }
+    ],
+    "totalElements": 1, "totalPages": 1, "number": 0, "size": 20, "first": true, "last": true
+  },
+  "error": null
+}
+```
+
+**Error Responses**
+
+| Status | Error Code | 설명 |
+| --- | --- | --- |
+| 400 | VALIDATION_ERROR | `min>max`, `size` 범위 초과, deep pagination |
+| 503 | SEARCH_UNAVAILABLE | Elasticsearch 장애(검색만 일시 중단) |
 
 ---
 

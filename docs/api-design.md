@@ -109,6 +109,18 @@
 | GET | `/api/admin/outbox-events?status=` | ADMIN (Outbox 모니터링) |
 | POST | `/api/admin/outbox-events/{id}/reprocess` | ADMIN (DEAD→PENDING 재처리) |
 
+### 5차 — 전문검색 / Elasticsearch (`specs/005-search-elasticsearch`, ✅ **구현 완료**)
+정본: `specs/005-search-elasticsearch/contracts/`
+| Method | Path | 권한 |
+| --- | --- | --- |
+| GET | `/api/properties/search?q=&sigunguCode=&dealType=&propertyType=&minDeposit=&maxDeposit=&minRent=&maxRent=&minArea=&maxArea=&roomCount=&page=&size=` | PUBLIC |
+
+- nori 형태소 전문검색. `q` 는 `title^3`·`nearStation^2`·`regionName^2`·`description` multi_match 부스팅, 나머지는 필터. `status=ACTIVE` 강제.
+- 정렬: `q` 있으면 `_score→createdAt→propertyId`, 없으면 `createdAt→propertyId`(최신순). `track_total_hits=true`.
+- 검증(400): `min<=max`, `page>=0`, `1<=size<=100`, `(page+1)*size<=10000`(deep pagination 차단).
+- ES 장애 시 `SEARCH_UNAVAILABLE`(503). 기존 `GET /api/properties`(QueryDSL 조건 검색)와 **별도 엔드포인트로 공존**.
+- 색인 동기화: 매물 승인/삭제/반려 시 4차 Outbox(`PROPERTY_INDEX`/`PROPERTY_UNINDEX`)로 DB↔ES 정합성 유지.
+
 ### 미배정 — 신고
 | Method | Path | 권한 |
 | --- | --- | --- |
@@ -127,6 +139,7 @@
 | NOT_FOUND | 404 |
 | INVALID_STATE / ALREADY_REVIEWED | 409 |
 | EXTERNAL_ADDRESS_API_ERROR / EXTERNAL_REAL_ESTATE_API_ERROR | 502 |
+| SEARCH_UNAVAILABLE (5차, ES 장애) | 503 |
 | INTERNAL_ERROR | 500 |
 
 > 구현 시 springdoc-openapi 가 코드에서 OpenAPI(`/swagger-ui.html`)를 자동 생성한다. 이 문서는 사람이 읽는 인덱스로 유지.
