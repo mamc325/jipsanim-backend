@@ -28,8 +28,8 @@
 - [x] T533 [P] 통합: 관련도(부스팅 순위·DELETED 제외), 복합어 decompound(부분어 "전력"→"한국전력공사"; "역세권"은 접미사 XSN 필터로 원형 미보존이라 부적합), 필터+q 조합(JEONSE 제외), q 없을 때 최신순 3건, 검증 400(size>100·deep pagination)
 
 ## Phase 5. 마감
-- [ ] T540 통합 E2E: 매물 승인→색인→검색 노출→비활성→삭제→검색 제외
-- [ ] T541 [P] docs/api-design·tech-stack(ADR ES)·ROADMAP·project-status 5차, 인수기준 체크
+- [x] T540 통합 E2E(`PropertySearchE2ETest`): 매물 승인→색인→검색 노출(HTTP)→삭제(soft delete=비활성)→검색 제외(HTTP)
+- [x] T541 [P] docs/api-design·api-specification(4.3 전문검색)·tech-stack(ADR-003)·ROADMAP·project-status 5차 반영, 인수기준(spec §8) 체크
 
 ## 의존성
 ```

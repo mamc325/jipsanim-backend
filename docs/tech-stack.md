@@ -33,10 +33,12 @@ Constitution v1.0.0 의 Technology Constraints 를 "왜 골랐는가 / 대안은
 - **대안**: RestClient(동기, 간단하지만 병렬 수집 표현 약함), RestTemplate(유지보수 모드).
 - **적용**: Constitution 원칙 I, V / plan D1.
 
-## ADR-003. 검색 계층 분리 — QueryDSL(1차) → Elasticsearch(5차)
-- **결정**: 1차는 QueryDSL 조건 검색. 키워드/한글 형태소 검색은 5차에서 ES+nori.
+## ADR-003. 검색 계층 분리 — QueryDSL(1차) → Elasticsearch(5차, ✅ 구현 완료)
+- **결정**: 1차는 QueryDSL 조건 검색(`GET /api/properties`). 키워드/한글 형태소 검색은 5차에서 ES+nori(`GET /api/properties/search`, 별도 엔드포인트로 공존).
 - **이유**: 조건 검색은 RDB 로 충분. ES 는 "강남역 풀옵션 오피스텔" 같은 형태소 기반 관련도 검색에서 가치. **latency 수치가 아니라 검색 품질**로 어필(Constitution VII).
-- **트레이드오프**: 색인/동기화 복잡도는 5차로 미룸.
+- **구현**: `korean_nori` analyzer(`nori_tokenizer decompound_mode=mixed` + `korean_pos_filter`), `multi_match` 필드 부스팅(`title^3`·`nearStation^2`·`regionName^2`·`description`), `status=ACTIVE` 강제, tie-breaker(`_score→createdAt→propertyId`). **색인 동기화는 ADR-004 Outbox 재사용**(`PROPERTY_INDEX`/`PROPERTY_UNINDEX`)으로 DB↔ES 정합성을 커밋 원자성+이중 멱등으로 보장.
+- **degrade**: ES 장애 시 `SEARCH_UNAVAILABLE`(503) — 검색만 격리, 기존 QueryDSL 경로 무영향(`@ConditionalOnProperty` 게이팅).
+- **발견/트레이드오프**: `korean_pos_filter` stoptags(XSN)로 접미사가 제거돼 `역세권`→`[역세]` 로 복합어 원형 미보존 → 검색어로 부적합. decompound 는 `전력→한국전력공사` 로 검증. 개선안은 user_dictionary 등록/XSN 제외(`specs/005-search-elasticsearch/spec.md §8`).
 
 ## ADR-004. 비동기 후속처리 — 메시지 브로커 대신 Outbox(4차)
 - **결정**: 알림/색인은 도메인 서비스가 **같은 `@Transactional` 안에서 `OutboxEventPublisher.append()` 로 직접** `outbox_event` 기록 → 폴링 Worker 처리(4차 확정, `specs/004-outbox-notification`). producer 멱등 `event_key` UNIQUE · consumer 멱등 `outbox_event_id` UNIQUE · `SKIP LOCKED` 선점 · PROCESSING reaper · 지수 백오프→DEAD.
