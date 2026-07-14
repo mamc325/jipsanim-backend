@@ -9,6 +9,8 @@ import com.jipsanim.reservation.slot.domain.VisitSlotStatus;
 import com.jipsanim.reservation.slot.repository.VisitSlotRepository;
 import com.jipsanim.reservation.waiting.dto.WaitingEntryResponse;
 import com.jipsanim.reservation.waiting.dto.WaitingStatusResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
@@ -17,6 +19,8 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class WaitingService {
+
+    private static final Logger log = LoggerFactory.getLogger(WaitingService.class);
 
     private final WaitingQueueService queue;
     private final VisitSlotRepository slotRepository;
@@ -67,12 +71,22 @@ public class WaitingService {
         if (slot != null && slot.getStatus() == VisitSlotStatus.OPEN) {
             IssuedInvitation invitation = queue.tryIssue(slotId);
             if (invitation != null) {
-                invitationEventRecorder.record(slotId, invitation); // best-effort 적재
+                recordInvitationBestEffort(slotId, invitation);
             }
             return invitation;
         }
         queue.cleanupSlot(slotId);
         return null;
+    }
+
+    /** 발급 알림 적재는 best-effort — 실패해도 발급/예약/sweep 본 흐름을 막지 않는다(REQUIRES_NEW + 예외 흡수). */
+    private void recordInvitationBestEffort(Long slotId, IssuedInvitation invitation) {
+        try {
+            invitationEventRecorder.record(slotId, invitation);
+        } catch (Exception e) {
+            log.warn("예약권 발급 알림 적재 실패(best-effort, 무시): slotId={} userId={} err={}",
+                    slotId, invitation.userId(), e.getMessage());
+        }
     }
 
     private long positionOf(Long slotId, Long userId) {
