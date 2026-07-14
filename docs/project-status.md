@@ -12,7 +12,7 @@ Spec Kit 워크플로우(constitution → spec → plan → data-model → contr
 | **1차 MVP** | 회원/권한, 외부 API 배치 수집, 시세 기준(p10~p90/IQR)·관리자 승인, 매물 등록·가격 리스크 검증, QueryDSL 조건 검색 | ✅ 구현 완료 |
 | **2차** | 방문 슬롯, Redis Sorted Set 대기열, TTL 예약권(원자적 발급), Mock 결제 확정, 예약 확정 | ✅ 구현 완료 |
 | **3차** | 예약 취소/환불(24h 전 전액·슬롯 재개방), 중개사 월별 정산(배치·수수료 20%·carry_over 이월) | ✅ 구현 완료 |
-| 4차 | Outbox Pattern, 알림 비동기, 실패 재시도 | ⏳ 예정 |
+| 4차 | Outbox Pattern(동일 커밋 적재·폴링 Worker), Mock 알림 비동기, 지수 백오프 재시도·DEAD·수동 재처리 | 🧩 설계 완료(구현 대기) |
 | 5차 | Elasticsearch + nori 한글 검색 | ⏳ 예정 |
 | 6차 | Redis 캐싱/조회수, k6 부하, Sentry/Prometheus/Grafana, Docker/CI | ⏳ 예정 |
 

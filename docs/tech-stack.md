@@ -39,7 +39,8 @@ Constitution v1.0.0 의 Technology Constraints 를 "왜 골랐는가 / 대안은
 - **트레이드오프**: 색인/동기화 복잡도는 5차로 미룸.
 
 ## ADR-004. 비동기 후속처리 — 메시지 브로커 대신 Outbox(4차)
-- **결정**: 알림/색인은 같은 트랜잭션에서 `outbox_events` 기록 후 Worker 처리. MVP 는 도메인 이벤트(`ApplicationEventPublisher`)로 발행만 해 두고 4차에 Outbox 리스너로 교체.
+- **결정**: 알림/색인은 도메인 서비스가 **같은 `@Transactional` 안에서 `OutboxEventPublisher.append()` 로 직접** `outbox_event` 기록 → 폴링 Worker 처리(4차 확정, `specs/004-outbox-notification`). producer 멱등 `event_key` UNIQUE · consumer 멱등 `outbox_event_id` UNIQUE · `SKIP LOCKED` 선점 · PROCESSING reaper · 지수 백오프→DEAD.
+  - **정정**: 초기 MVP 는 매물 승인/거절을 `ApplicationEventPublisher` 로 발행했으나 4차에서 **직접 append 로 통일**(AFTER_COMMIT 리스너는 원자성이 깨져 미채택). 기존 event/listener 는 4차에서 정리.
 - **이유**: 브로커(Kafka/RabbitMQ) 없이 DB 트랜잭션과 원자적으로 이벤트 확보 → 유실/중복 방지. 개인 프로젝트 인프라 최소화.
 - **대안**: Kafka(강력하나 인프라·운영 비용 큼) — 본 프로젝트 목표(정합성 시연)엔 과함.
 - **적용**: Constitution 원칙 IV.
