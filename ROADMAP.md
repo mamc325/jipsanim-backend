@@ -9,7 +9,7 @@ Constitution 원칙 VI(스코프 차수 분리)에 따른 기능 차수. 각 차
 | 2차 | `specs/002-visit-reservation-queue` | 방문 슬롯, Redis Sorted Set 대기열, TTL 예약권(원자적 발급), Mock 결제 확정, 예약 확정. **슬롯당 1명 확정 구조로 단순화** | ✅ **구현 완료**(k6 동시 500명 검증) |
 | 3차 | `specs/003-refund-settlement` | 예약 취소/환불(24h 전 전액·슬롯 재개방), 중개사 월별 정산(배치·수수료 20%·carry_over 이월) | ✅ **구현 완료**(Phase 1~5, E2E 통과) |
 | 4차 | `specs/004-outbox-notification` | Outbox Pattern(동일 커밋 적재·폴링 Worker·SKIP LOCKED), Mock 알림 비동기, 지수 백오프 재시도·DEAD 격리·수동 재처리, 이중 멱등 | ✅ **구현 완료**(Phase 1~5, E2E 통과) |
-| 5차 | `specs/005-search-elasticsearch` | Elasticsearch + nori 한글 검색. **latency 아닌 검색 품질/관련도 어필** | 예정 |
+| 5차 | `specs/005-search-elasticsearch` | Elasticsearch + nori 한글 검색(Outbox 색인·전담 검색 엔드포인트·multi_match 부스팅). **latency 아닌 검색 품질/관련도 어필** | **설계 완료**(spec/plan/data-model/contracts/tasks, 구현 대기) |
 | 6차 | `specs/006-ops-performance` | Redis 인기 매물 캐싱/조회수 카운팅, k6 부하 테스트, Sentry/Prometheus/Grafana, Docker/CI 배포 | 예정 |
 
 ## 리뷰 반영 결정 사항 (Locked Decisions)
