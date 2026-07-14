@@ -19,7 +19,7 @@
 - [x] T520 `PropertyIndexEventRecorder`(**enabled=true 일 때만 append, 아니면 no-op** — 고아 이벤트/DEAD 방지, 리뷰 P1) + 도메인 연결: **전이 판정** `prev!=ACTIVE&&new==ACTIVE`→`PROPERTY_INDEX:{id}:{uuid}`, `prev==ACTIVE&&new!=ACTIVE`→`PROPERTY_UNINDEX:{id}:{uuid}`(UUID generation). 승인은 **기존 `PROPERTY_APPROVED` 알림 유지 + 추가 append**
 - [x] T521 `PropertyIndexOutboxHandler`(@ConditionalOnProperty): INDEX→최신 매물 재조회 후 upsert(ACTIVE, propertyId·primaryImageUrl 포함), UNINDEX→deleteById; 비ACTIVE 방어 삭제
 - [x] T522 [P] **Recorder 분기 테스트(ES 불필요, 빠름, 리뷰 P2)**: `enabled=true`+`worker-enabled=false` 에서 승인→`PROPERTY_INDEX` append / ACTIVE softDelete→`PROPERTY_UNINDEX` append 확인; `enabled=false` 면 append 없음(no-op)
-- [ ] T523 [P] 통합(ES): 승인→Outbox→핸들러 색인→ES 문서 존재; ACTIVE softDelete→삭제 (반복 전이 E2E 는 hide/unhide 도입 시로 이연)
+- [x] T523 [P] 통합(ES): 승인→Outbox→핸들러 색인→ES 문서 존재; ACTIVE softDelete→삭제 (`PropertyIndexingIntegrationTest`) (반복 전이 E2E 는 hide/unhide 도입 시로 이연)
 
 ## Phase 4. 검색 서비스 + 엔드포인트
 - [x] T530 `PropertyEsSearchCondition` + `PropertySearchEsService`(NativeQuery: multi_match 부스팅 + filter, status=ACTIVE, **track_total_hits=true**)
