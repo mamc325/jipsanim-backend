@@ -23,10 +23,13 @@ public class PropertyService {
 
     private final PropertyRepository propertyRepository;
     private final RealtorRepository realtorRepository;
+    private final com.jipsanim.search.index.PropertyIndexEventRecorder indexRecorder;
 
-    public PropertyService(PropertyRepository propertyRepository, RealtorRepository realtorRepository) {
+    public PropertyService(PropertyRepository propertyRepository, RealtorRepository realtorRepository,
+                           com.jipsanim.search.index.PropertyIndexEventRecorder indexRecorder) {
         this.propertyRepository = propertyRepository;
         this.realtorRepository = realtorRepository;
+        this.indexRecorder = indexRecorder;
     }
 
     @Transactional
@@ -58,7 +61,11 @@ public class PropertyService {
     @Transactional
     public void delete(Long userId, Long propertyId) {
         Property property = findOwned(userId, propertyId);
+        boolean wasActive = property.getStatus() == com.jipsanim.property.domain.PropertyStatus.ACTIVE;
         property.softDelete();
+        if (wasActive) {
+            indexRecorder.recordUnindex(property.getId()); // ACTIVE 이탈 → 색인 제거
+        }
     }
 
     @Transactional(readOnly = true)

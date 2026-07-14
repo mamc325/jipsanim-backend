@@ -23,13 +23,16 @@ public class PropertyVerificationAdminService {
     private final PropertyVerificationRepository verificationRepository;
     private final PropertyRepository propertyRepository;
     private final OutboxEventPublisher outbox;
+    private final com.jipsanim.search.index.PropertyIndexEventRecorder indexRecorder;
 
     public PropertyVerificationAdminService(PropertyVerificationRepository verificationRepository,
                                             PropertyRepository propertyRepository,
-                                            OutboxEventPublisher outbox) {
+                                            OutboxEventPublisher outbox,
+                                            com.jipsanim.search.index.PropertyIndexEventRecorder indexRecorder) {
         this.verificationRepository = verificationRepository;
         this.propertyRepository = propertyRepository;
         this.outbox = outbox;
+        this.indexRecorder = indexRecorder;
     }
 
     @Transactional
@@ -37,10 +40,15 @@ public class PropertyVerificationAdminService {
         PropertyVerification verification = findVerification(verificationId);
         verification.approve(adminUserId);
         Property property = findProperty(verification.getPropertyId());
+        boolean wasActive = property.getStatus() == com.jipsanim.property.domain.PropertyStatus.ACTIVE;
         property.approve();
+        // 기존 승인 알림 유지 + ACTIVE 진입(prev!=ACTIVE)이면 색인 이벤트 추가(리뷰 P1)
         outbox.append("PROPERTY", property.getId(), "PROPERTY_APPROVED",
                 "PROPERTY_APPROVED:" + property.getId(),
                 Map.of("recipientUserId", property.getRealtor().getUser().getId(), "propertyId", property.getId()));
+        if (!wasActive) {
+            indexRecorder.recordIndex(property.getId());
+        }
         return decision(verification, property);
     }
 
@@ -49,11 +57,16 @@ public class PropertyVerificationAdminService {
         PropertyVerification verification = findVerification(verificationId);
         verification.reject(adminUserId, reason);
         Property property = findProperty(verification.getPropertyId());
+        boolean wasActive = property.getStatus() == com.jipsanim.property.domain.PropertyStatus.ACTIVE;
         property.reject();
         outbox.append("PROPERTY", property.getId(), "PROPERTY_REJECTED",
                 "PROPERTY_REJECTED:" + property.getId(),
                 Map.of("recipientUserId", property.getRealtor().getUser().getId(),
                         "propertyId", property.getId(), "reason", reason == null ? "" : reason));
+        // ACTIVE 이탈이면 색인 제거(prev==ACTIVE && new!=ACTIVE)
+        if (wasActive) {
+            indexRecorder.recordUnindex(property.getId());
+        }
         return decision(verification, property);
     }
 
