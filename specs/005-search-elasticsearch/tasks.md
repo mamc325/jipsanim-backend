@@ -11,9 +11,9 @@
 - [x] T504 [P] 통합: Testcontainers ElasticsearchContainer(nori) 기동 + 인덱스 생성 확인
 
 ## Phase 2. Worker 핸들러 레지스트리 리팩터 (4차 확장)
-- [ ] T510 `OutboxEventHandler` 인터페이스(supports/handle) + `OutboxWorker.publishOne` 을 핸들러 위임으로 변경
-- [ ] T511 `NotificationOutboxHandler`: 기존 NotificationDispatcher 를 핸들러로 감쌈(NotificationType supports)
-- [ ] T512 [P] 회귀: 4차 알림 발행/멱등/DEAD 테스트 그대로 통과(라우팅 후에도 동작)
+- [x] T510 `OutboxEventHandler` 인터페이스(supports/handle) + `OutboxWorker.publishOne` 을 핸들러 위임으로 변경
+- [x] T511 `NotificationOutboxHandler`: 기존 NotificationDispatcher 를 핸들러로 감쌈(NotificationType supports)
+- [x] T512 [P] 회귀: 4차 알림 발행/멱등/DEAD 테스트 그대로 통과(라우팅 후에도 동작)
 
 ## Phase 3. 색인 이벤트 적재 + 핸들러
 - [ ] T520 `PropertyIndexEventRecorder`(**enabled=true 일 때만 append, 아니면 no-op** — 고아 이벤트/DEAD 방지, 리뷰 P1) + 도메인 연결: **전이 판정** `prev!=ACTIVE&&new==ACTIVE`→`PROPERTY_INDEX:{id}:{uuid}`, `prev==ACTIVE&&new!=ACTIVE`→`PROPERTY_UNINDEX:{id}:{uuid}`(UUID generation). 승인은 **기존 `PROPERTY_APPROVED` 알림 유지 + 추가 append**

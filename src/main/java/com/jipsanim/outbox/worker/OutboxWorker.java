@@ -1,6 +1,5 @@
 package com.jipsanim.outbox.worker;
 
-import com.jipsanim.notification.dispatch.NotificationDispatcher;
 import com.jipsanim.outbox.domain.OutboxEvent;
 import com.jipsanim.outbox.repository.OutboxEventRepository;
 import org.springframework.stereotype.Component;
@@ -19,12 +18,12 @@ import java.util.List;
 public class OutboxWorker {
 
     private final OutboxEventRepository repository;
-    private final NotificationDispatcher dispatcher;
+    private final List<OutboxEventHandler> handlers;
     private final Clock clock;
 
-    public OutboxWorker(OutboxEventRepository repository, NotificationDispatcher dispatcher, Clock clock) {
+    public OutboxWorker(OutboxEventRepository repository, List<OutboxEventHandler> handlers, Clock clock) {
         this.repository = repository;
-        this.dispatcher = dispatcher;
+        this.handlers = handlers;
         this.clock = clock;
     }
 
@@ -42,12 +41,19 @@ public class OutboxWorker {
         return events.stream().map(OutboxEvent::getId).toList();
     }
 
-    /** 발행: dispatch + PUBLISHED 를 한 트랜잭션에 커밋(알림 생성과 상태 종결이 원자적). */
+    /** 발행: event_type 을 지원하는 핸들러로 위임 + PUBLISHED 를 한 트랜잭션에 커밋. */
     @Transactional
     public void publishOne(Long id) {
         OutboxEvent event = repository.findById(id).orElseThrow();
-        dispatcher.dispatch(event);
+        resolveHandler(event.getEventType()).handle(event);
         event.markPublished(LocalDateTime.now(clock));
+    }
+
+    private OutboxEventHandler resolveHandler(String eventType) {
+        return handlers.stream()
+                .filter(h -> h.supports(eventType))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("지원 핸들러 없음: eventType=" + eventType));
     }
 
     /** 실패 기록: 별 트랜잭션(REQUIRES_NEW)으로 attempts/백오프/DEAD 를 보존. */
