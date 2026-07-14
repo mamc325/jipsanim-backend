@@ -3,10 +3,10 @@
 규칙: `[P]` 병렬 가능. 상태전이/멱등/백오프는 테스트 먼저. 브랜치 `feat/004-p<phase>-*`.
 
 ## Phase 1. 엔티티/상태/리포지토리
-- [ ] T400 `OutboxEvent` 엔티티(+OutboxStatus, **event_key UNIQUE**, attempts, next_retry_at, **processing_started_at**, payload JSON) + 상태전이(markProcessing/markPublished/markFailed(백오프·DEAD)/reset)
-- [ ] T401 `Notification` 엔티티(+NotificationType, outbox_event_id UNIQUE, is_read) + markRead
-- [ ] T402 `OutboxEventRepository` — 선점 `SKIP LOCKED`(PENDING, next_retry_at<=now, LIMIT), **reaper 쿼리**(PROCESSING & processing_started_at<타임아웃 → PENDING), status 필터 페이지; `NotificationRepository`(recipient/unread)
-- [ ] T403 [P] 테스트: 상태전이(PENDING→PROCESSING→PUBLISHED/DEAD, 재시도 PENDING), 백오프 계산(attempts→delay, ≥6 DEAD)
+- [x] T400 `OutboxEvent` 엔티티(+OutboxStatus, **event_key UNIQUE**, attempts, next_retry_at, **processing_started_at**, payload JSON) + 상태전이(markProcessing/markPublished/markFailed(백오프·DEAD)/reset)
+- [x] T401 `Notification` 엔티티(+NotificationType, outbox_event_id UNIQUE, is_read) + markRead
+- [x] T402 `OutboxEventRepository` — 선점 `SKIP LOCKED`(PENDING, next_retry_at<=now, LIMIT), **reaper 쿼리**(PROCESSING & processing_started_at<타임아웃 → PENDING), status 필터 페이지; `NotificationRepository`(recipient/unread)
+- [x] T403 [P] 테스트: 상태전이(PENDING→PROCESSING→PUBLISHED/DEAD, 재시도 PENDING), 백오프 계산(attempts→delay, ≥6 DEAD)
 
 ## Phase 2. Producer + Dispatcher + Sender(멱등)
 - [ ] T410 `OutboxEventPublisher.append(type, aggId, eventType, **eventKey**, payload)` — 도메인 트랜잭션 내 적재. **native `INSERT ... ON DUPLICATE KEY UPDATE id=id`(no-op) 로 고정** — event_key 중복을 예외 없이 흡수(트랜잭션 오염 방지, 리뷰 P1). `INSERT IGNORE`(오류 은폐)·JPA save+catch 지양
