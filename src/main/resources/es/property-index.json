@@ -1,0 +1,46 @@
+{
+  "settings": {
+    "analysis": {
+      "tokenizer": {
+        "nori_mixed": {
+          "type": "nori_tokenizer",
+          "decompound_mode": "mixed"
+        }
+      },
+      "filter": {
+        "korean_pos_filter": {
+          "type": "nori_part_of_speech",
+          "stoptags": ["E", "IC", "J", "MAG", "MAJ", "MM", "SP", "SSC", "SSO", "SC", "SE", "XPN", "XSA", "XSN", "XSV", "UNA", "NA", "VSV"]
+        }
+      },
+      "analyzer": {
+        "korean_nori": {
+          "type": "custom",
+          "tokenizer": "nori_mixed",
+          "filter": ["korean_pos_filter", "lowercase"]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "propertyId": { "type": "long" },
+      "title": { "type": "text", "analyzer": "korean_nori" },
+      "description": { "type": "text", "analyzer": "korean_nori" },
+      "roadAddress": { "type": "text", "analyzer": "korean_nori" },
+      "regionName": { "type": "text", "analyzer": "korean_nori" },
+      "nearStation": { "type": "text", "analyzer": "korean_nori" },
+      "sigunguCode": { "type": "keyword" },
+      "dealType": { "type": "keyword" },
+      "propertyType": { "type": "keyword" },
+      "status": { "type": "keyword" },
+      "primaryImageUrl": { "type": "keyword" },
+      "deposit": { "type": "long" },
+      "monthlyRent": { "type": "long" },
+      "area": { "type": "double" },
+      "roomCount": { "type": "integer" },
+      "realtorId": { "type": "long" },
+      "createdAt": { "type": "date" }
+    }
+  }
+}

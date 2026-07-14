@@ -3,12 +3,12 @@
 규칙: `[P]` 병렬 가능. 색인/검색은 테스트 먼저 가능한 것부터. 브랜치 `feat/005-p<phase>-*`.
 
 ## Phase 1. ES 인프라 + 인덱스 매핑
-- [ ] T500 `spring-boot-starter-data-elasticsearch` 의존성 + `spring.elasticsearch.uris` + **`search.elasticsearch.enabled`(운영 true, 공통 테스트 false, 리뷰 P1)**
-- [ ] T501 ES+nori 이미지: `docker/elasticsearch-nori/Dockerfile`(**버전 pin** 예 8.13.4 + analysis-nori) + docker-compose(discovery.type=single-node, xpack.security.enabled=false, ES_JAVA_OPTS heap) — 리뷰 P2
-- [ ] T502 `PropertyDocument`(**@Document(createIndex=false)**, **propertyId long(정렬) + primaryImageUrl keyword**, 리뷰 P1) + `PropertyDocumentRepository`
+- [x] T500 `spring-boot-starter-data-elasticsearch` 의존성 + `spring.elasticsearch.uris` + **`search.elasticsearch.enabled`(운영 true, 공통 테스트 false, 리뷰 P1)**
+- [x] T501 ES+nori 이미지: `docker/elasticsearch-nori/Dockerfile`(**버전 pin** 예 8.13.4 + analysis-nori) + docker-compose(discovery.type=single-node, xpack.security.enabled=false, ES_JAVA_OPTS heap) — 리뷰 P2
+- [x] T502 `PropertyDocument`(**@Document(createIndex=false)**, **propertyId long(정렬) + primaryImageUrl keyword**, 리뷰 P1) + `PropertyDocumentRepository`
   - `@EnableElasticsearchRepositories` 는 별도 `ElasticsearchRepositoryConfig`(**@ConditionalOnProperty(search.elasticsearch.enabled)**), 공통 테스트 yml `spring.data.elasticsearch.repositories.enabled=false` (ES 빈 미생성, 리뷰 P1)
-- [ ] T503 인덱스 settings/mappings JSON: **named filter `korean_pos_filter`(nori_part_of_speech)** + analyzer `korean_nori`(decompound=mixed) 참조(리뷰 P2) + `PropertyIndexBootstrap`(ApplicationRunner, **@ConditionalOnProperty(search.elasticsearch.enabled)**, 없으면 생성)
-- [ ] T504 [P] 통합: Testcontainers ElasticsearchContainer(nori) 기동 + 인덱스 생성 확인
+- [x] T503 인덱스 settings/mappings JSON: **named filter `korean_pos_filter`(nori_part_of_speech)** + analyzer `korean_nori`(decompound=mixed) 참조(리뷰 P2) + `PropertyIndexBootstrap`(ApplicationRunner, **@ConditionalOnProperty(search.elasticsearch.enabled)**, 없으면 생성)
+- [x] T504 [P] 통합: Testcontainers ElasticsearchContainer(nori) 기동 + 인덱스 생성 확인
 
 ## Phase 2. Worker 핸들러 레지스트리 리팩터 (4차 확장)
 - [ ] T510 `OutboxEventHandler` 인터페이스(supports/handle) + `OutboxWorker.publishOne` 을 핸들러 위임으로 변경

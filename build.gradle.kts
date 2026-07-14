@@ -29,6 +29,9 @@ dependencies {
 	// WebClient(외부 API 호출 경계 전용). MVC 앱으로 구동됨.
 	implementation("org.springframework.boot:spring-boot-starter-webflux")
 
+	// Elasticsearch (5차: nori 한글 전문검색)
+	implementation("org.springframework.boot:spring-boot-starter-data-elasticsearch")
+
 	// QueryDSL (jakarta) — 조건 검색
 	implementation("com.querydsl:querydsl-jpa:${queryDslVersion}:jakarta")
 	annotationProcessor("com.querydsl:querydsl-apt:${queryDslVersion}:jakarta")
@@ -56,6 +59,7 @@ dependencies {
 	testImplementation("org.springframework.security:spring-security-test")
 	testImplementation("org.testcontainers:junit-jupiter")
 	testImplementation("org.testcontainers:mysql")
+	testImplementation("org.testcontainers:elasticsearch")
 	testImplementation("com.redis:testcontainers-redis:2.2.2")
 	// 외부 API 클라이언트 테스트 (MockWebServer)
 	testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
@@ -71,6 +75,10 @@ tasks.named<Test>("test") {
 	systemProperty("reservation.sweep-enabled", "false")
 	// outbox 폴링 Worker 도 테스트 중 비활성. OutboxPoller.pollOnce() 를 직접 호출해 검증.
 	systemProperty("outbox.worker-enabled", "false")
+	// 5차 ES 는 공통 테스트에서 비활성(ES 컨테이너 없이 기동). ES 통합 테스트만 @DynamicPropertySource 로 true 오버라이드.
+	systemProperty("search.elasticsearch.enabled", "false")
+	systemProperty("spring.data.elasticsearch.repositories.enabled", "false")
+	systemProperty("management.health.elasticsearch.enabled", "false")
 }
 
 // ./gradlew loadTest — 부하/벤치마크만 실행

@@ -1,6 +1,5 @@
 # 로컬 개발 인프라. `docker compose up -d` 로 실행.
-# application.yml 기본값(DB_NAME=jipsanim, root/root, 3306 / Redis 6379)과 정렬.
-# (Elasticsearch 는 5차에서 추가)
+# application.yml 기본값(DB_NAME=jipsanim, root/root, 3306 / Redis 6379 / ES 9200)과 정렬.
 services:
   mysql:
     image: mysql:8.0
@@ -32,6 +31,23 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # 5차: nori 플러그인 포함 커스텀 이미지(docker/elasticsearch-nori/Dockerfile).
+  elasticsearch:
+    build:
+      context: ./docker/elasticsearch-nori
+    container_name: jipsanim-elasticsearch
+    ports:
+      - "9200:9200"
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
 volumes:
   jipsanim-mysql-data:
