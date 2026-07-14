@@ -26,6 +26,13 @@ spring:
         default_batch_fetch_size: 100
     open-in-view: false
     show-sql: false
+  elasticsearch:
+    uris: ${ES_URIS:http://localhost:9200}
+
+# 5차 검색: 운영 true, 공통 테스트 false (ES 없이 기동). Bootstrap/색인핸들러/검색 빈 게이팅.
+search:
+  elasticsearch:
+    enabled: ${SEARCH_ES_ENABLED:true}
 
 jwt:
   # 운영에서는 반드시 JWT_SECRET 환경변수로 주입. 아래는 로컬 개발 기본값.
