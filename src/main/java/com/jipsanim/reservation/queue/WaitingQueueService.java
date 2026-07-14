@@ -22,13 +22,15 @@ public class WaitingQueueService {
 
     private final StringRedisTemplate redis;
     private final RedisScript<Long> enqueueScript;
-    private final RedisScript<String> tryIssueScript;
+    @SuppressWarnings("rawtypes")
+    private final RedisScript<List> tryIssueScript;
     private final RedisScript<Long> releaseTokenIfOwnerScript;
     private final long tokenTtlMillis;
 
+    @SuppressWarnings("rawtypes")
     public WaitingQueueService(StringRedisTemplate redis,
                                RedisScript<Long> enqueueScript,
-                               RedisScript<String> tryIssueScript,
+                               RedisScript<List> tryIssueScript,
                                RedisScript<Long> releaseTokenIfOwnerScript,
                                ReservationProperties properties) {
         this.redis = redis;
@@ -46,6 +48,10 @@ public class WaitingQueueService {
         return "reservation-token:" + slotId;
     }
 
+    static String invitationKey(Long slotId) {
+        return "invitation:" + slotId;
+    }
+
     /** 대기열 진입(원자). @return true=진입, false=이미 대기중 */
     public boolean enqueue(Long slotId, Long userId) {
         Long seq = redis.execute(enqueueScript, List.of(queueKey(slotId), ACTIVE_SLOTS, SEQ),
@@ -59,11 +65,18 @@ public class WaitingQueueService {
         return rank == null ? null : rank + 1;
     }
 
-    /** 원자적 발급. @return 발급된 userId 또는 null(이미 토큰/빈 큐). */
-    public Long tryIssue(Long slotId) {
-        String issued = redis.execute(tryIssueScript, List.of(tokenKey(slotId), queueKey(slotId)),
+    /** 원자적 발급. @return {userId, invitationSeq} 또는 null(이미 토큰/빈 큐). invitationSeq 는 Outbox 멱등키. */
+    public IssuedInvitation tryIssue(Long slotId) {
+        @SuppressWarnings("unchecked")
+        List<Object> result = redis.execute(tryIssueScript,
+                List.of(tokenKey(slotId), queueKey(slotId), invitationKey(slotId)),
                 String.valueOf(tokenTtlMillis));
-        return issued == null ? null : Long.valueOf(issued);
+        if (result == null || result.size() < 2) {
+            return null;
+        }
+        Long userId = Long.valueOf(result.get(0).toString());
+        long seq = Long.parseLong(result.get(1).toString());
+        return new IssuedInvitation(userId, seq);
     }
 
     public boolean hasToken(Long slotId, Long userId) {

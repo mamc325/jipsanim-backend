@@ -119,8 +119,8 @@ class CancellationIntegrationTest {
                 .andExpect(jsonPath("$.data.reservationStatus").value("CANCELLED"))
                 .andExpect(jsonPath("$.data.refundAmount").value(10000));
 
+        // payment_id UNIQUE → 재취소해도 이 결제의 환불은 정확히 1건(전역 count 는 다른 테스트 영향받아 지양)
         assertThat(refundRepository.findByPaymentId(paymentId)).isPresent();
-        assertThat(refundRepository.count()).isEqualTo(1);
     }
 
     @Test

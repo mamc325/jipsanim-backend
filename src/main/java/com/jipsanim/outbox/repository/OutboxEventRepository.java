@@ -35,6 +35,8 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> 
 
     long countByEventKey(String eventKey);
 
+    long countByEventTypeAndAggregateId(String eventType, Long aggregateId);
+
     /**
      * Producer 멱등 적재: event_key 중복이면 `ON DUPLICATE KEY UPDATE id=id` 로 no-op.
      * 예외를 던지지 않아 도메인 트랜잭션이 rollback-only 로 오염되지 않는다(리뷰 P1).

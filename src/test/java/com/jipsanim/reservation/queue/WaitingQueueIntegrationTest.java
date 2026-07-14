@@ -42,7 +42,7 @@ class WaitingQueueIntegrationTest {
         queue.enqueue(slot, 11L);
         queue.enqueue(slot, 22L);
 
-        assertThat(queue.tryIssue(slot)).isEqualTo(11L);
+        assertThat(queue.tryIssue(slot).userId()).isEqualTo(11L);
         assertThat(queue.hasToken(slot, 11L)).isTrue();
         assertThat(queue.rank(slot, 11L)).isNull();      // 발급되며 큐에서 빠짐
         assertThat(queue.tokenTtlSeconds(slot)).isGreaterThan(0);
@@ -63,7 +63,7 @@ class WaitingQueueIntegrationTest {
         queue.releaseTokenIfOwner(slot, 11L);            // 소유자 → 삭제
         assertThat(queue.tokenOwner(slot)).isNull();
 
-        assertThat(queue.tryIssue(slot)).isEqualTo(22L); // 다음 대기자
+        assertThat(queue.tryIssue(slot).userId()).isEqualTo(22L); // 다음 대기자
     }
 
     @Test
@@ -88,15 +88,15 @@ class WaitingQueueIntegrationTest {
             queue.enqueue(slot, u);
         }
         ExecutorService pool = Executors.newFixedThreadPool(30);
-        List<Callable<Long>> tasks = new java.util.ArrayList<>();
+        List<Callable<com.jipsanim.reservation.queue.IssuedInvitation>> tasks = new java.util.ArrayList<>();
         for (int i = 0; i < 30; i++) {
             tasks.add(() -> queue.tryIssue(slot));
         }
-        List<Future<Long>> results = pool.invokeAll(tasks);
+        List<Future<com.jipsanim.reservation.queue.IssuedInvitation>> results = pool.invokeAll(tasks);
         pool.shutdown();
 
         long issued = 0;
-        for (Future<Long> f : results) {
+        for (Future<com.jipsanim.reservation.queue.IssuedInvitation> f : results) {
             if (f.get() != null) {
                 issued++;
             }

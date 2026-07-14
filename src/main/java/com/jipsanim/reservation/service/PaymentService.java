@@ -31,13 +31,16 @@ public class PaymentService {
     private final ReservationRepository reservationRepository;
     private final VisitSlotRepository slotRepository;
     private final WaitingQueueService queue;
+    private final com.jipsanim.outbox.publisher.OutboxEventPublisher outbox;
 
     public PaymentService(PaymentRepository paymentRepository, ReservationRepository reservationRepository,
-                          VisitSlotRepository slotRepository, WaitingQueueService queue) {
+                          VisitSlotRepository slotRepository, WaitingQueueService queue,
+                          com.jipsanim.outbox.publisher.OutboxEventPublisher outbox) {
         this.paymentRepository = paymentRepository;
         this.reservationRepository = reservationRepository;
         this.slotRepository = slotRepository;
         this.queue = queue;
+        this.outbox = outbox;
     }
 
     @Transactional
@@ -73,6 +76,9 @@ public class PaymentService {
         payment.pay();
         reservation.confirm();
         slot.reserve();
+        outbox.append("RESERVATION", reservation.getId(), "VISIT_RESERVATION_CONFIRMED",
+                "VISIT_RESERVATION_CONFIRMED:" + reservation.getId(),
+                java.util.Map.of("recipientUserId", userId, "reservationId", reservation.getId()));
         afterCommit(() -> queue.cleanupSlot(slotId)); // 확정 → 토큰/큐 정리
         return confirmation(payment, reservation, VisitSlotStatus.RESERVED);
     }
