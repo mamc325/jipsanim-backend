@@ -85,15 +85,15 @@ Notification: (생성=발행 결과) is_read false → true
 ```
 
 ## 8. 인수 기준
-- [ ] 도메인 커밋 시 OutboxEvent 동일 커밋 적재, 롤백 시 이벤트 미생성(원자성).
-- [ ] **Producer 멱등**: 같은 사건에 append 2회 호출돼도 OutboxEvent 1건(event_key UNIQUE).
-- [ ] Worker 폴링 → 발행 → Notification 생성 + Outbox PUBLISHED.
-- [ ] **소비 멱등**: 같은 이벤트 2회 처리돼도 Notification 1건(outbox_event_id UNIQUE).
-- [ ] 발행 실패 → attempts 증가·next_retry_at 지수 백오프, `attempts>=6` DEAD.
-- [ ] **PROCESSING 고착 복구**: processing_started_at 타임아웃 초과 이벤트가 PENDING 으로 복귀.
-- [ ] DEAD 재처리 → PENDING 복귀 후 재발행.
-- [ ] 7종 이벤트가 각 도메인 지점에서 적재되고 수신자에게 알림 생성.
-- [ ] 알림 실패가 도메인 트랜잭션(예약/정산/승인) 실패로 전파되지 않음.
+- [x] 도메인 커밋 시 OutboxEvent 동일 커밋 적재, 롤백 시 이벤트 미생성(원자성).
+- [x] **Producer 멱등**: 같은 사건에 append 2회 호출돼도 OutboxEvent 1건(event_key UNIQUE).
+- [x] Worker 폴링 → 발행 → Notification 생성 + Outbox PUBLISHED.
+- [x] **소비 멱등**: 같은 이벤트 2회 처리돼도 Notification 1건(outbox_event_id UNIQUE).
+- [x] 발행 실패 → attempts 증가·next_retry_at 지수 백오프, `attempts>=6` DEAD.
+- [x] **PROCESSING 고착 복구**: processing_started_at 타임아웃 초과 이벤트가 PENDING 으로 복귀.
+- [x] DEAD 재처리 → PENDING 복귀 후 재발행.
+- [x] 7종 이벤트가 각 도메인 지점에서 적재되고 수신자에게 알림 생성.
+- [x] 알림 실패가 도메인 트랜잭션(예약/정산/승인) 실패로 전파되지 않음.
 
 ## 9. 다음 산출물
 `plan` → `data-model` → `contracts` → `tasks`. (신규 인프라 없음 — 기존 MySQL 스택 재사용)

@@ -28,8 +28,8 @@
 | payment | 2차 | ⏳ | Mock 결제 |
 | refund | 3차 | ⏳ | 환불 |
 | settlement | 3차 | ⏳ | 중개사 월별 정산 |
-| notification | 4차 | ⏳ | 알림 |
-| outbox_event | 4차 | ⏳ | Outbox 이벤트 |
+| notification | 4차 | ✅ | 알림(recipient_user_id, outbox_event_id UK — 소비 멱등) |
+| outbox_event | 4차 | ✅ | Outbox 이벤트(event_key UK — producer 멱등, status/attempts/next_retry_at/processing_started_at) |
 | report | 미배정 | ⏳ | 허위매물 신고 |
 
 ---

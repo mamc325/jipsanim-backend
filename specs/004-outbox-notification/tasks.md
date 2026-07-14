@@ -32,8 +32,8 @@
 - [x] T434 [P] 테스트: 도메인 커밋→이벤트 적재, 롤백→미적재(원자성); 읽음/재처리 상태전이·권한(403)
 
 ## Phase 5. 마감
-- [ ] T440 통합 E2E: 예약 확정→OutboxEvent→Worker 발행→Notification→/me 조회→읽음
-- [ ] T441 [P] docs/api-design·erd·ROADMAP 4차 상태, project-status 갱신, 인수기준 체크
+- [x] T440 통합 E2E: 예약 확정→OutboxEvent→Worker 발행→Notification→/me 조회→읽음
+- [x] T441 [P] docs/api-design·erd·ROADMAP 4차 상태, project-status 갱신, 인수기준 체크
 
 ## 의존성
 ```

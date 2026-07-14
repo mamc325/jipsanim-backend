@@ -1,7 +1,7 @@
 # API 설계 인덱스 (집사님)
 
 전체 API 한눈에 보기. **정본(요청/응답 스키마)은 각 차수의 `specs/<차수>/contracts/` 이며, 이 문서는 요약 인덱스**다.
-현재 **1~3차 구현 완료 + 4차 계약 확정**, 5차 이후는 범위만 표기(ROADMAP 기준). — Constitution VI(차수 분리)
+현재 **1~4차 구현 완료**, 5차 이후는 범위만 표기(ROADMAP 기준). — Constitution VI(차수 분리)
 
 - 공통 응답 래퍼: `{ success, data, error }` (`docs/tech-stack.md`, `ApiResponse`)
 - 인증: `Authorization: Bearer <JWT>`
@@ -67,9 +67,9 @@
 
 ---
 
-## ✅ 2차·3차 — 구현 완료 / 4차 — 계약 확정(구현 대기) / 5차 이후 예정
+## ✅ 2차·3차·4차 — 구현 완료 / 5차 이후 예정
 
-2차·3차는 구현·테스트 완료, 4차는 계약 확정(설계 완료). 5차 이후는 착수 차수에서 `specs/<차수>/contracts/` 로 확정.
+2·3·4차는 구현·테스트 완료. 5차 이후는 착수 차수에서 `specs/<차수>/contracts/` 로 확정.
 
 ### 2차 — 방문슬롯 / 대기열 / 예약 / Mock결제 (`specs/002-visit-reservation-queue`, ✅ **구현 완료**)
 정본: `specs/002-visit-reservation-queue/contracts/api-contract.md`
@@ -100,7 +100,7 @@
 
 > 결정 §2: 취소가 환불을 내부 생성 → **별도 `POST /payments/{id}/refunds` 없음.**
 
-### 4차 — 알림 / Outbox (`specs/004-outbox-notification`, **계약 확정**)
+### 4차 — 알림 / Outbox (`specs/004-outbox-notification`, ✅ **구현 완료**)
 정본: `specs/004-outbox-notification/contracts/api-contract.md`
 | Method | Path | 권한 |
 | --- | --- | --- |
