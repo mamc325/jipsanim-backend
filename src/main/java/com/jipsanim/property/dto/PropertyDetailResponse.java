@@ -29,6 +29,7 @@ public record PropertyDetailResponse(
         PropertyStatus status,
         VerificationStatus verificationStatus,
         RiskLevel riskLevel,
+        long viewCount,
         List<Image> images) {
 
     public record Image(String imageUrl, boolean primary, int sortOrder) {
@@ -42,6 +43,6 @@ public record PropertyDetailResponse(
                 p.getId(), p.getRealtor().getId(), p.getTitle(), p.getDescription(), p.getRoadAddress(),
                 p.getBjdongCode(), p.getSigunguCode(), p.getRegionName(), p.getNearStation(),
                 p.getPropertyType(), p.getDealType(), p.getDeposit(), p.getMonthlyRent(), p.getArea(),
-                p.getRoomCount(), p.getStatus(), p.getVerificationStatus(), p.getRiskLevel(), images);
+                p.getRoomCount(), p.getStatus(), p.getVerificationStatus(), p.getRiskLevel(), p.getViewCount(), images);
     }
 }

@@ -4,6 +4,7 @@ import com.jipsanim.common.response.ApiResponse;
 import com.jipsanim.common.security.AuthUser;
 import com.jipsanim.property.dto.PropertyCreateRequest;
 import com.jipsanim.property.dto.PropertyDetailResponse;
+import com.jipsanim.property.dto.PropertyDetailResult;
 import com.jipsanim.property.dto.PropertyMutationResponse;
 import com.jipsanim.property.dto.PropertySearchCondition;
 import com.jipsanim.property.dto.PropertySummaryResponse;
@@ -12,6 +13,9 @@ import com.jipsanim.property.repository.PropertyRepository;
 import com.jipsanim.property.service.PropertyService;
 import com.jipsanim.property.verification.dto.SubmissionResponse;
 import com.jipsanim.property.verification.service.PropertyVerificationService;
+import com.jipsanim.property.view.ViewCountService;
+import com.jipsanim.property.view.ViewerKeyResolver;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -36,13 +40,19 @@ public class PropertyController {
     private final PropertyService propertyService;
     private final PropertyVerificationService verificationService;
     private final PropertyRepository propertyRepository;
+    private final ViewCountService viewCountService;
+    private final ViewerKeyResolver viewerKeyResolver;
 
     public PropertyController(PropertyService propertyService,
                              PropertyVerificationService verificationService,
-                             PropertyRepository propertyRepository) {
+                             PropertyRepository propertyRepository,
+                             ViewCountService viewCountService,
+                             ViewerKeyResolver viewerKeyResolver) {
         this.propertyService = propertyService;
         this.verificationService = verificationService;
         this.propertyRepository = propertyRepository;
+        this.viewCountService = viewCountService;
+        this.viewerKeyResolver = viewerKeyResolver;
     }
 
     @GetMapping
@@ -90,7 +100,13 @@ public class PropertyController {
     @GetMapping("/{propertyId}")
     public ApiResponse<PropertyDetailResponse> detail(
             @AuthenticationPrincipal AuthUser authUser,
-            @PathVariable Long propertyId) {
-        return ApiResponse.success(propertyService.getDetail(authUser, propertyId));
+            @PathVariable Long propertyId,
+            HttpServletRequest request) {
+        PropertyDetailResult result = propertyService.getDetail(authUser, propertyId);
+        // ACTIVE 공개표현일 때만 조회수 집계(best-effort, dedup). 비공개/소유자·ADMIN 표현은 미집계.
+        if (result.countablePublicAccess()) {
+            viewCountService.record(propertyId, viewerKeyResolver.resolve(authUser, request));
+        }
+        return ApiResponse.success(result.response());
     }
 }

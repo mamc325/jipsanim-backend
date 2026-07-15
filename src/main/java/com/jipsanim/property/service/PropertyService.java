@@ -7,6 +7,7 @@ import com.jipsanim.property.domain.Property;
 import com.jipsanim.property.domain.PropertyStatus;
 import com.jipsanim.property.dto.PropertyCreateRequest;
 import com.jipsanim.property.dto.PropertyDetailResponse;
+import com.jipsanim.property.dto.PropertyDetailResult;
 import com.jipsanim.property.dto.PropertyMutationResponse;
 import com.jipsanim.property.dto.PropertyUpdateRequest;
 import com.jipsanim.property.repository.PropertyRepository;
@@ -69,18 +70,19 @@ public class PropertyService {
     }
 
     @Transactional(readOnly = true)
-    public PropertyDetailResponse getDetail(AuthUser authUser, Long propertyId) {
+    public PropertyDetailResult getDetail(AuthUser authUser, Long propertyId) {
         Property property = propertyRepository.findWithImagesById(propertyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
         if (property.getStatus() == PropertyStatus.DELETED) {
             throw new BusinessException(ErrorCode.NOT_FOUND);
         }
         if (property.getStatus() == PropertyStatus.ACTIVE) {
-            return PropertyDetailResponse.from(property);
+            // ACTIVE 공개표현 → 조회수 카운트·캐시 대상(6차 P1)
+            return new PropertyDetailResult(PropertyDetailResponse.from(property), true);
         }
-        // 비공개(DRAFT/PENDING/REJECTED/CLOSED/HIDDEN)는 소유자 또는 ADMIN 만
+        // 비공개(DRAFT/PENDING/REJECTED/CLOSED/HIDDEN)는 소유자 또는 ADMIN 만 — 미집계·미캐시
         if (authUser != null && (authUser.role() == Role.ADMIN || isOwner(authUser.userId(), property))) {
-            return PropertyDetailResponse.from(property);
+            return new PropertyDetailResult(PropertyDetailResponse.from(property), false);
         }
         throw new BusinessException(ErrorCode.NOT_FOUND);
     }

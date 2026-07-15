@@ -88,6 +88,10 @@ public class Property extends BaseTimeEntity {
     @Column(name = "risk_level", length = 10)
     private RiskLevel riskLevel;
 
+    // 6차: 생애 누적 조회수(Redis 카운터 → writeback 반영). 랭킹 트렌딩 score 와 분리.
+    @Column(name = "view_count", nullable = false, columnDefinition = "BIGINT NOT NULL DEFAULT 0")
+    private long viewCount = 0L;
+
     @OneToMany(mappedBy = "property", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PropertyImage> images = new ArrayList<>();
 
@@ -260,5 +264,9 @@ public class Property extends BaseTimeEntity {
 
     public List<PropertyImage> getImages() {
         return images;
+    }
+
+    public long getViewCount() {
+        return viewCount;
     }
 }
