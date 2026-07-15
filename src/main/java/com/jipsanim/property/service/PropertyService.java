@@ -25,12 +25,15 @@ public class PropertyService {
     private final PropertyRepository propertyRepository;
     private final RealtorRepository realtorRepository;
     private final com.jipsanim.search.index.PropertyIndexEventRecorder indexRecorder;
+    private final com.jipsanim.property.popular.PopularCacheEvictor cacheEvictor;
 
     public PropertyService(PropertyRepository propertyRepository, RealtorRepository realtorRepository,
-                           com.jipsanim.search.index.PropertyIndexEventRecorder indexRecorder) {
+                           com.jipsanim.search.index.PropertyIndexEventRecorder indexRecorder,
+                           com.jipsanim.property.popular.PopularCacheEvictor cacheEvictor) {
         this.propertyRepository = propertyRepository;
         this.realtorRepository = realtorRepository;
         this.indexRecorder = indexRecorder;
+        this.cacheEvictor = cacheEvictor;
     }
 
     @Transactional
@@ -65,7 +68,8 @@ public class PropertyService {
         boolean wasActive = property.getStatus() == com.jipsanim.property.domain.PropertyStatus.ACTIVE;
         property.softDelete();
         if (wasActive) {
-            indexRecorder.recordUnindex(property.getId()); // ACTIVE 이탈 → 색인 제거
+            indexRecorder.recordUnindex(property.getId());     // ACTIVE 이탈 → 색인 제거(Outbox)
+            cacheEvictor.evictOnDeactivate(property.getId());  // 랭킹/캐시 정리(afterCommit best-effort)
         }
     }
 

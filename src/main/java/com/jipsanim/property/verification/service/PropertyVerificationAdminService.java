@@ -24,15 +24,18 @@ public class PropertyVerificationAdminService {
     private final PropertyRepository propertyRepository;
     private final OutboxEventPublisher outbox;
     private final com.jipsanim.search.index.PropertyIndexEventRecorder indexRecorder;
+    private final com.jipsanim.property.popular.PopularCacheEvictor cacheEvictor;
 
     public PropertyVerificationAdminService(PropertyVerificationRepository verificationRepository,
                                             PropertyRepository propertyRepository,
                                             OutboxEventPublisher outbox,
-                                            com.jipsanim.search.index.PropertyIndexEventRecorder indexRecorder) {
+                                            com.jipsanim.search.index.PropertyIndexEventRecorder indexRecorder,
+                                            com.jipsanim.property.popular.PopularCacheEvictor cacheEvictor) {
         this.verificationRepository = verificationRepository;
         this.propertyRepository = propertyRepository;
         this.outbox = outbox;
         this.indexRecorder = indexRecorder;
+        this.cacheEvictor = cacheEvictor;
     }
 
     @Transactional
@@ -49,6 +52,7 @@ public class PropertyVerificationAdminService {
         if (!wasActive) {
             indexRecorder.recordIndex(property.getId());
         }
+        cacheEvictor.evictDetail(property.getId()); // ACTIVE 진입 → 상세 캐시 최신화(afterCommit)
         return decision(verification, property);
     }
 
@@ -63,9 +67,10 @@ public class PropertyVerificationAdminService {
                 "PROPERTY_REJECTED:" + property.getId(),
                 Map.of("recipientUserId", property.getRealtor().getUser().getId(),
                         "propertyId", property.getId(), "reason", reason == null ? "" : reason));
-        // ACTIVE 이탈이면 색인 제거(prev==ACTIVE && new!=ACTIVE)
+        // ACTIVE 이탈이면 색인 제거(prev==ACTIVE && new!=ACTIVE) + 랭킹/캐시 정리
         if (wasActive) {
             indexRecorder.recordUnindex(property.getId());
+            cacheEvictor.evictOnDeactivate(property.getId());
         }
         return decision(verification, property);
     }

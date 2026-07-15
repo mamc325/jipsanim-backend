@@ -47,7 +47,8 @@ public class SecurityConfig {
                         .requestMatchers(PUBLIC_PATHS).permitAll()
                         // 매물 상세/검색(전문검색 포함)·방문슬롯 목록은 공개(비공개 상태 접근 제어는 서비스에서)
                         .requestMatchers(HttpMethod.GET, "/api/properties", "/api/properties/search",
-                                "/api/properties/*", "/api/properties/*/visit-slots").permitAll()
+                                "/api/properties/popular", "/api/properties/*",
+                                "/api/properties/*/visit-slots").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
