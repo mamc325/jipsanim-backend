@@ -30,12 +30,11 @@
 - [x] T630 k6 스크립트 3종: `loadtest/k6/property-detail.js`(상세 캐시 hit-ratio·writeback 효과), `popular.js`(인기목록 캐시), `es-search.js`(전문검색 baseline). 기존 `lib/common.js` 재사용
 - [~] T631 `docs/load-test-results.md` §6 **측정 계획 + 실행법 + 메트릭 스크레이프법 + TBD 표** 추가. **실측 수치는 미기재(원칙 VII)** — 이 환경엔 k6 미설치 → 스택 기동 후 사용자가 실행해 hit-ratio/DB write 감소/p95 채움. 커스텀 메트릭(`cache_requests_total` 등, Phase 3)으로 산출
 
-## Phase 5. 배포 + 마감
-- [ ] T640 앱 멀티스테이지 `Dockerfile`(gradle jdk21 build → temurin 21-jre) + `.dockerignore`
-- [ ] T641 docker-compose 전 스택(app+mysql+redis+es-nori+prometheus+grafana), 모니터링 스택 profile
-- [ ] T642 GitHub Actions `.github/workflows/build.yml`: JDK21 + `./gradlew build`(Testcontainers) + 앱 이미지 빌드(배포 제외)
-- [ ] T643 [P] docs 마감: project-status/ROADMAP 6차 완료, tech-stack ADR(캐시·관측성·배포), api-design·api-specification(인기 엔드포인트·viewCount), 인수기준(spec §8) 체크
-- [ ] T644 회귀: 기존 상세/검색/예약/정산/알림 경로 그린(테스트 프로파일 writeback/decay/Sentry off)
+- [x] T640 멀티스테이지 `Dockerfile`(temurin 21-jdk build → 21-jre) + `.dockerignore`. **docker build 성공 검증**
+- [x] T641 docker-compose 에 `app`(profile app) + `prometheus`+`grafana`(profile monitoring) 서비스 추가(서비스명 접속 env)
+- [x] T642 `.github/workflows/build.yml`: JDK21 + `./gradlew build`(Testcontainers) + `docker build`(배포 제외)
+- [x] T643 docs 마감: project-status/ROADMAP 6차 ✅, tech-stack ADR-007, api-design·api-specification(인기 4.4·viewCount), spec §8 인수기준 체크
+- [x] T644 회귀: 전체 스위트 그린(146 @Test, 테스트 프로파일 writeback/decay/Sentry/스케줄러 off)
 
 ## 의존성
 ```
