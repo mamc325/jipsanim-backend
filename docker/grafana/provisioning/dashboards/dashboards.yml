@@ -1,0 +1,12 @@
+# 6차 관측성: Grafana 대시보드 provider(파일 기반 자동 로드).
+apiVersion: 1
+
+providers:
+  - name: jipsanim
+    orgId: 1
+    folder: Jipsanim
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards

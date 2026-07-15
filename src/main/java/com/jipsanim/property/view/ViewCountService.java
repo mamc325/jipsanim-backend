@@ -1,5 +1,6 @@
 package com.jipsanim.property.view;
 
+import com.jipsanim.common.metrics.PropertyMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -20,12 +21,14 @@ public class ViewCountService {
 
     private final StringRedisTemplate redis;
     private final RedisScript<Long> viewCountScript;
+    private final PropertyMetrics metrics;
     private final long windowSeconds;
 
     public ViewCountService(StringRedisTemplate redis, RedisScript<Long> viewCountScript,
-                            ViewCountProperties properties) {
+                            PropertyMetrics metrics, ViewCountProperties properties) {
         this.redis = redis;
         this.viewCountScript = viewCountScript;
+        this.metrics = metrics;
         this.windowSeconds = properties.windowSeconds();
     }
 
@@ -41,7 +44,11 @@ public class ViewCountService {
                             ViewCountRedisConfig.VIEW_PENDING,
                             ViewCountRedisConfig.PROPERTY_POPULAR),
                     String.valueOf(windowSeconds), String.valueOf(propertyId));
-            return counted != null && counted == 1L;
+            if (counted != null && counted == 1L) {
+                return true;
+            }
+            metrics.dedupSkip(); // Lua 반환 0 = 중복조회 skip
+            return false;
         } catch (Exception e) {
             log.warn("조회수 카운트 실패(best-effort skip) propertyId={}: {}", propertyId, e.getMessage());
             return false;

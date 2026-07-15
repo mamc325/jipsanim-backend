@@ -78,8 +78,8 @@
 
 ### 2-4. 관측성 → **Micrometer/Prometheus + Grafana + Sentry**(결정 Q4)
 - **`spring-boot-starter-actuator` 는 기존 존재**(build.gradle.kts:23), `application.yml` 에 `management:`(`include: health,info`)도 존재 → **`micrometer-registry-prometheus` 만 추가**(P3, 중복 금지) + management 블록 보강.
-- **보안/포트(P3·P5 확정)**: **`management.server.port=9090` 으로 actuator 를 앱(8080)과 분리** + `management.endpoints.web.exposure.include=health,info,prometheus`. compose 에서 **9090 은 호스트 미매핑·내부 네트워크 전용**(prometheus 컨테이너만 접근) → 8080 을 열어도 `/actuator/*` 외부 미노출.
-  - **⚠️ Security 명시 필수(P1·P2)**: 현 체인은 `anyRequest().authenticated()` 라 관리 컨텍스트에 적용되면 `/actuator/prometheus` 가 **401**. → **actuator 전용 `@Order(0)` SecurityFilterChain 을 분리**(`securityMatcher(EndpointRequest.to("prometheus","health"))` + `permitAll` + csrf off) — 기존 JWT API 체인은 불변(관심사 분리, 끼워넣기보다 안전). "수정 불필요"는 폐기. docker healthcheck 는 내부 9090 `/actuator/health`.
+- **보안/포트(구현 확정, P5)**: 관리 포트 9090 분리를 시도했으나 **별도 관리 컨텍스트(child)에는 메인 SecurityFilterChain 이 적용되지 않아**(`ManagementWebSecurityAutoConfiguration` 가 health 만 허용, prometheus 401) 그리고 자식 컨텍스트 보안 커스터마이즈가 복잡 → **actuator 를 앱 포트(8080) 동일**로 두고 `/actuator/prometheus`·`/actuator/health` 를 **PUBLIC_PATHS permitAll**(무인증 스크레이프)로 확정(리뷰 대안 b, 로컬 공개 허용). 외부 노출은 **compose 앱 포트 미공개 + 리버스 프록시에서 `/actuator/*` 차단**으로 제어.
+  - **prometheus export 명시 필수**: `management.prometheus.metrics.export.enabled: true` — `management.defaults.metrics.export.enabled` 폴백이 off 로 판정되어 미설정 시 PrometheusMeterRegistry/엔드포인트가 생성되지 않음(발견).
 - **커스텀 메트릭(P6 — 코드명은 dot, Prometheus 노출명은 `*_total`)**:
   | 코드명(Micrometer) | Prometheus 노출명 | 태그 |
   | --- | --- | --- |
@@ -124,7 +124,7 @@
 ## 6. API (상세 contracts)
 - `GET /api/properties/popular?limit=` [PUBLIC] — 인기 매물 Top-N(cache-aside, 단일 키 slice). `limit` 기본 10, 1~50. 응답 `List<PopularPropertyResponse>`.
 - `GET /api/properties/{id}` [PUBLIC, 기존] — `PropertyDetailResponse` 에 `viewCount` 추가 + ACTIVE 성공 응답 시 카운트 훅(부수효과, best-effort). 캐시는 ACTIVE 만.
-- `GET :9090/actuator/prometheus` — 메트릭 스크레이프(관리 포트 9090 분리·호스트 미매핑, P3·P5).
+- `GET /actuator/prometheus` — 메트릭 스크레이프(앱 포트 8080, permitAll 무인증). 외부 노출은 compose/프록시에서 차단.
 
 ## 7. 정합성/멱등 (구현 전 확정)
 - **조회수 유실 방지(원칙 II)**: writeback 은 `EXISTS` 선확인 후 `RENAME` 원자 배출 → 배출 중 증가분 신규 `view:pending` 로 보존. flushing 처리는 단일 트랜잭션, 커밋 성공 후 `DEL`. (처리 후~DEL 전 크래시 시 다음 주기 중복 가산 가능 — 저빈도·근사 카운터로 허용, 문서화.)

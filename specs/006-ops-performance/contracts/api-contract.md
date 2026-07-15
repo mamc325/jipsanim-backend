@@ -56,7 +56,7 @@
 - **ACTIVE 이탈 정리(afterCommit best-effort)**: 삭제/반려 커밋 후 `ZREM property:popular {id}` + `DEL property:detail:{id}` + `DEL popular:list`(단일 키).
 
 ## 관측성 (운영)
-- `GET :9090/actuator/prometheus` — Micrometer 메트릭 스크레이프. **`management.server.port=9090` 분리 + compose 9090 호스트 미매핑(내부 전용)**(P3·P5). **SecurityConfig 에 actuator 전용 permit 명시**(`EndpointRequest.to("prometheus","health")` permitAll) — `anyRequest().authenticated()` 로는 401 위험. `:9090/actuator/health` 는 healthcheck 용.
+- `GET /actuator/prometheus` — Micrometer 메트릭 스크레이프(앱 포트 8080). **PUBLIC_PATHS 에 `/actuator/prometheus`·`/actuator/health` permitAll**(무인증) + `management.prometheus.metrics.export.enabled: true`. 관리 포트 분리는 자식 컨텍스트 보안 미적용으로 미채택 → 외부 노출은 compose 미공개/프록시 차단으로 제어(P5).
 
 ## 에러 코드
 | code | HTTP | 의미 |

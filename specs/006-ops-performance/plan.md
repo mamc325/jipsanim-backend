@@ -70,9 +70,8 @@
 - **왜 Outbox 아님(P3)**: 캐시/랭킹은 `search.elasticsearch.enabled`(색인 게이팅)와 **독립**이어야 하고, TTL 이 짧아 정리 실패도 자연 수렴한다. Outbox 다중 핸들러/Worker 라우팅 확장 없이 결합도를 낮춘다. **색인만 5차 Outbox 그대로**, 랭킹/캐시는 afterCommit best-effort. 정리 자체가 자연 멱등(ZREM/DEL).
 
 ### D6. 관측성
-- 의존성(P3 정정): **`spring-boot-starter-actuator` 는 이미 존재**(build.gradle.kts:23), **`application.yml` 에 `management:`(`exposure.include: health,info`)도 이미 있음** → **`micrometer-registry-prometheus` 만 추가**(Boot BOM 관리) + 기존 management 블록에 `prometheus` exposure·`server.port=9090` 보강. **Sentry 는 `io.sentry:sentry-spring-boot-starter-jakarta`(Boot 3) + `sentry-bom` 또는 명시 버전**(Boot BOM 비관리라 버전 필수).
-- **포트(P3·P5 확정)**: `management.server.port=9090`(앱 8080 과 분리). compose 에서 **9090 은 호스트 미매핑(내부 네트워크 전용)** → 8080 을 열어도 `/actuator/*` 외부 노출 없음.
-  - **actuator 전용 SecurityFilterChain 분리(P2 권장)**: 기존 JWT 체인(`anyRequest().authenticated()`)에 끼워 넣지 말고 **`@Order(0)` 전용 체인** — `securityMatcher(EndpointRequest.to("prometheus","health"))` + `permitAll` + csrf off. 기존 API 체인(`@Order` 기본)은 그대로. (관리 컨텍스트에 체인이 적용돼도 401 안 남, 관심사 분리 명확)
+- 의존성: actuator 기존 → **`micrometer-registry-prometheus` 만 추가**(Boot BOM 관리) + management 블록에 `prometheus` exposure + **`management.prometheus.metrics.export.enabled: true`**(폴백 off 판정 → 명시 필요). **Sentry `io.sentry:sentry-spring-boot-starter-jakarta` + `sentry-bom:7.18.0`**.
+- **포트/보안(구현 확정, P5)**: 관리 포트 9090 분리 시도 → **자식 관리 컨텍스트에 메인 SecurityFilterChain 미적용**(prometheus 401, `@Order(0)`/`EndpointRequest` 매처도 관리 포트에 안 맞음) → **actuator 를 앱 포트(8080) 동일**로 두고 `/actuator/prometheus`·`/actuator/health` 를 **PUBLIC_PATHS 평문 경로 permitAll**. 외부 노출은 compose 미공개 + 프록시 차단(리뷰 대안 b).
 - **커스텀 메트릭(P6 — 코드명 dot, 노출명 `*_total`)**: `Counter` `cache.requests`(cache,result)·`cache.errors`(cache)·`view.dedup.skip`·`view.flush`·`view.flush.delta`, `Timer` 상세/인기/검색(`@Timed` 또는 수동). Micrometer 가 export 시 `_total` 자동 부착 → 코드명에 붙이지 않음.
   - **Timer 태그 low-cardinality(P4)**: `endpoint` 태그는 **고정값만**(`property_detail`/`popular`/`search`). 실제 `propertyId` 등 가변값은 태그 금지(Prometheus cardinality 폭발 방지). URI 템플릿 기반이면 `{id}` 유지(actuator 기본 `http_server_requests` 도 templated uri).
 - Sentry: DSN 은 `application-local.yml`(gitignore). 미설정(빈 DSN) 시 자동 비활성. 샘플링/환경 태그 설정.
