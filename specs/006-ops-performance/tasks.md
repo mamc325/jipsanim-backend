@@ -10,20 +10,14 @@
 - [x] T604·T605 통합(`ViewCountIntegrationTest`, Testcontainers Redis+MySQL): dedup 1회, 다른 viewerKey 각각 집계+ZINCRBY, **writeback 유실 0**(flushing 중 유입→새 pending 보존), getDetail 게이트(ACTIVE=true/소유자 DRAFT=false), 빈 pending no-op — 5/5 통과
 
 ## Phase 2. 인기 랭킹 + cache-aside
-- [ ] T610 `PopularPropertyService.top(limit)` cache-aside **단일 키**: `popular:list`(Top-50, TTL 60s) hit/miss → miss 시 **`ZREVRANGE property:popular 0 199`(over-fetch, P4) → DB ACTIVE 필터 → `propertyId→response` 맵으로 순서 복원(P5) → 상위 50 캐시** → 앱에서 `limit` slice. limit 1~50 검증(400). 무효화 `DEL popular:list` 1회(P7). over-fetch 크기는 프로퍼티(`popular.overfetch`)
-- [ ] T611 `GET /api/properties/popular?limit=` [PUBLIC] 컨트롤러 + SecurityConfig permitAll(`/api/properties/popular`) + **`List<PopularPropertyResponse>`** 반환(P2). Redis 장애 시 DB `view_count` desc 폴백(원칙 V)
-- [ ] T612 `PropertyDetailCache` cache-aside(`property:detail:{id}` TTL 300s) — **`countablePublicAccess=true`(ACTIVE 공개표현)만** 저장/조회(카운트와 동일 게이트, P1·P4). **읽기 정책(P1, 역할별)**: anonymous·**USER**=cache-first, **REALTOR·ADMIN**=캐시 read/write 우회→DB 직조회. 캐시 write 는 anonymous/USER miss 경로만. 비공개 표현·404 저장 금지. 상태 전이 evict 지점 연결
-- [ ] T613 ACTIVE 이탈(삭제/반려) **afterCommit best-effort** 정리: `ZREM property:popular {id}` + `DEL property:detail:{id}` + `DEL popular:list`(단일 키)(2차 TransactionSynchronization 패턴 재사용). 승인 시 상세 캐시 evict
-- [ ] T614 `PopularRankingDecay`(@Scheduled cron 기본 04:00, 게이팅 `popular.decay-enabled`): **`ZUNIONSTORE key 1 key WEIGHTS factor`**(전체 score×factor, 원자) + `ZREMRANGEBYSCORE -inf (epsilon)`. factor 0.5/epsilon 1.0 프로퍼티
-- [ ] T615 [P] 단위: 감쇠(score×factor + 임계 제거), cache-aside hit/miss 분기
-- [ ] T616 [P] 통합: 인기목록 반환·캐시 hit. **ACTIVE 이탈 제외(P1, 2계층)**: (a) evict 성공+캐시 miss 재조립 시 **DB ACTIVE 필터로 제외**, (b) **ZSET 에 stale member 를 남겨도(ZREM 미실행) miss 조립 응답엔 미포함** 확인(DB 필터 권위), (c) evict 실패 시 `popular:list` cache hit 최대 60s stale 은 **정책 문서화**(엄격 테스트 아님). **상세 캐시**: evict 성공=즉시 제외 / REALTOR·ADMIN=캐시 우회→DB / evict 실패=최대 TTL stale 정책 문서화
-- [ ] T617 [P] 통합(**핵심 버그 방지, P2**): 상세 **첫 조회 miss → 둘째 조회 cache hit** 상황에서도 조회수 record 가 호출되는지 — 같은 viewerKey 는 dedup 윈도우로 1회만, 다른 viewerKey 는 hit 여도 가산됨을 검증
-- [ ] T618 [P] 통합(**역할별 캐시 읽기 + viewerKey dedup, #5**):
-  - **anonymous**: cache-first, viewerKey=`ip` — 첫 조회 miss→캐시 저장, 재조회 hit, 동일 IP dedup 1회
-  - **USER**: cache-first, viewerKey=`u:{userId}` — anonymous 와 동일하게 hit, USER 별 dedup 독립(다른 userId 는 각각 가산)
-  - **REALTOR**: 캐시 read 우회 → DB 직조회(캐시에 stale ACTIVE 있어도 DB 값 반환), 자기 비공개 매물은 캐시 미저장
-  - **ADMIN**: 캐시 read 우회 → DB 직조회, 비공개 표현 미집계·미저장
-  - ACTIVE 매물은 REALTOR/ADMIN 조회도 `countable=true` 가산(공개표현)
+- [x] T610 `PopularPropertyService.top(limit)` cache-aside 단일 키 `popular:list`(Top-50, TTL 60s): miss 시 `ZREVRANGE 0 199`(over-fetch) → DB ACTIVE 필터 → `propertyId→response` 맵 순서 복원 → 상위 50 캐시 → `limit` slice. limit 1~50 검증(400)
+- [x] T611 `GET /api/properties/popular?limit=`(기본 10) [PUBLIC] `PopularPropertyController` + SecurityConfig permitAll + `List<PopularPropertyResponse>`. Redis 장애 시 `findTopActiveByViewCount` DB 폴백(degrade)
+- [x] T612 `PropertyDetailCache`(ACTIVE 공개표현만 저장, TTL 300s) + 컨트롤러 역할별 읽기: anonymous·USER=cache-first, REALTOR·ADMIN=우회→DB. 캐시 write 는 anonymous/USER miss 경로만
+- [x] T613 `PopularCacheEvictor`(afterCommit best-effort): 삭제/반려(ACTIVE 이탈) → `ZREM`+`DEL detail`+`DEL popular:list`; 승인 → `DEL detail`. `PropertyService.delete`·`PropertyVerificationAdminService.approve/reject` 연결
+- [x] T614 `PopularRankingDecay.decay()`(항상 빈) `ZUNIONSTORE WEIGHTS factor`(unionAndStore) + `removeRangeByScore(-inf, epsilon)` + `PopularRankingDecayScheduler`(게이팅, cron 04:00)
+- [x] T615·T616 통합(`PopularPropertyIntegrationTest`): 트렌딩 Top-N 순서, **stale ZSET member(비ACTIVE/미존재) DB 필터 제외(P1 권위)**, cache hit, 감쇠(×0.5+임계 제거), limit 검증 400 — 5/5
+- [x] T617·T618 통합(`PropertyDetailCacheIntegrationTest`): anonymous cache-first+dedup(동일 IP 1회), USER viewerKey 독립(다른 userId 각각), **REALTOR·ADMIN 캐시 우회→DB(stale 안 받음)** — 3/3
+  - (evict 실패 시 최대 TTL stale 은 정책 문서화 — 엄격 테스트 대상 아님)
 
 ## Phase 3. 관측성 (Prometheus/Grafana/Sentry)
 - [ ] T620 **`micrometer-registry-prometheus` 만 추가**(actuator 는 이미 build.gradle.kts:23 존재, application.yml `management:` 도 존재 — P3, 중복 추가 금지) + 기존 management 블록에 `prometheus` exposure·**`management.server.port=9090`** 보강. compose 에서 **9090 호스트 미매핑(내부망 전용)**(P3·P5). **actuator 전용 `@Order(0)` SecurityFilterChain 분리**(`securityMatcher(EndpointRequest.to("prometheus","health"))`+permitAll+csrf off), 기존 API 체인 불변(P2). healthcheck 는 내부 `:9090/actuator/health`

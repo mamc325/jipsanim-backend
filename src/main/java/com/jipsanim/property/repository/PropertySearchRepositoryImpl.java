@@ -3,6 +3,7 @@ package com.jipsanim.property.repository;
 import com.jipsanim.property.domain.PropertyStatus;
 import com.jipsanim.property.domain.QProperty;
 import com.jipsanim.property.domain.QPropertyImage;
+import com.jipsanim.property.dto.PopularPropertyResponse;
 import com.jipsanim.property.dto.PropertySearchCondition;
 import com.jipsanim.property.dto.PropertySummaryResponse;
 import com.querydsl.core.BooleanBuilder;
@@ -100,5 +101,38 @@ public class PropertySearchRepositoryImpl implements PropertySearchRepository {
             orders.add(p.createdAt.desc());
         }
         return orders.toArray(new OrderSpecifier[0]);
+    }
+
+    @Override
+    public List<PopularPropertyResponse> findPopularByIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        QProperty p = QProperty.property;
+        QPropertyImage img = QPropertyImage.propertyImage;
+        return queryFactory
+                .select(Projections.constructor(PopularPropertyResponse.class,
+                        p.id, p.title, p.regionName, p.dealType, p.deposit, p.monthlyRent, p.area, p.roomCount,
+                        img.imageUrl, p.viewCount))
+                .from(p)
+                .leftJoin(img).on(img.property.eq(p).and(img.primary.isTrue()))
+                .where(p.id.in(ids).and(p.status.eq(PropertyStatus.ACTIVE)))
+                .fetch();
+    }
+
+    @Override
+    public List<PopularPropertyResponse> findTopActiveByViewCount(int limit) {
+        QProperty p = QProperty.property;
+        QPropertyImage img = QPropertyImage.propertyImage;
+        return queryFactory
+                .select(Projections.constructor(PopularPropertyResponse.class,
+                        p.id, p.title, p.regionName, p.dealType, p.deposit, p.monthlyRent, p.area, p.roomCount,
+                        img.imageUrl, p.viewCount))
+                .from(p)
+                .leftJoin(img).on(img.property.eq(p).and(img.primary.isTrue()))
+                .where(p.status.eq(PropertyStatus.ACTIVE))
+                .orderBy(p.viewCount.desc(), p.id.desc())
+                .limit(limit)
+                .fetch();
     }
 }

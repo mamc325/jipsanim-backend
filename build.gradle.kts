@@ -77,6 +77,8 @@ tasks.named<Test>("test") {
 	systemProperty("outbox.worker-enabled", "false")
 	// 6차 조회수 writeback 스케줄러도 테스트 중 비활성. ViewCountWriteback.flush() 를 직접 호출해 검증.
 	systemProperty("viewcount.writeback-enabled", "false")
+	// 6차 인기 랭킹 일 감쇠 스케줄러도 테스트 중 비활성. PopularRankingDecay.decay() 를 직접 호출해 검증.
+	systemProperty("popular.decay-enabled", "false")
 	// 5차 ES 는 공통 테스트에서 비활성(ES 컨테이너 없이 기동). ES 통합 테스트만 @DynamicPropertySource 로 true 오버라이드.
 	systemProperty("search.elasticsearch.enabled", "false")
 	systemProperty("spring.data.elasticsearch.repositories.enabled", "false")

@@ -13,8 +13,10 @@ import com.jipsanim.property.repository.PropertyRepository;
 import com.jipsanim.property.service.PropertyService;
 import com.jipsanim.property.verification.dto.SubmissionResponse;
 import com.jipsanim.property.verification.service.PropertyVerificationService;
+import com.jipsanim.property.popular.PropertyDetailCache;
 import com.jipsanim.property.view.ViewCountService;
 import com.jipsanim.property.view.ViewerKeyResolver;
+import com.jipsanim.user.domain.Role;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -42,17 +44,20 @@ public class PropertyController {
     private final PropertyRepository propertyRepository;
     private final ViewCountService viewCountService;
     private final ViewerKeyResolver viewerKeyResolver;
+    private final PropertyDetailCache detailCache;
 
     public PropertyController(PropertyService propertyService,
                              PropertyVerificationService verificationService,
                              PropertyRepository propertyRepository,
                              ViewCountService viewCountService,
-                             ViewerKeyResolver viewerKeyResolver) {
+                             ViewerKeyResolver viewerKeyResolver,
+                             PropertyDetailCache detailCache) {
         this.propertyService = propertyService;
         this.verificationService = verificationService;
         this.propertyRepository = propertyRepository;
         this.viewCountService = viewCountService;
         this.viewerKeyResolver = viewerKeyResolver;
+        this.detailCache = detailCache;
     }
 
     @GetMapping
@@ -102,11 +107,28 @@ public class PropertyController {
             @AuthenticationPrincipal AuthUser authUser,
             @PathVariable Long propertyId,
             HttpServletRequest request) {
-        PropertyDetailResult result = propertyService.getDetail(authUser, propertyId);
-        // ACTIVE 공개표현일 때만 조회수 집계(best-effort, dedup). 비공개/소유자·ADMIN 표현은 미집계.
-        if (result.countablePublicAccess()) {
+        // 읽기 정책(P1): REALTOR/ADMIN(소유자 가능성·권위) 캐시 우회 → DB 직조회. anonymous/USER 는 cache-first.
+        boolean bypassCache = authUser != null
+                && (authUser.role() == Role.REALTOR || authUser.role() == Role.ADMIN);
+
+        PropertyDetailResponse response;
+        boolean countable;
+        PropertyDetailResponse hit = bypassCache ? null : detailCache.get(propertyId);
+        if (hit != null) {
+            response = hit;          // 캐시엔 ACTIVE 공개표현만 존재 → 집계 대상
+            countable = true;
+        } else {
+            PropertyDetailResult result = propertyService.getDetail(authUser, propertyId);
+            response = result.response();
+            countable = result.countablePublicAccess();
+            if (!bypassCache && countable) {
+                detailCache.put(propertyId, response); // anonymous/USER miss 경로만 캐시 워밍
+            }
+        }
+        // ACTIVE 공개표현이면 cache hit/miss 무관 집계(best-effort, dedup).
+        if (countable) {
             viewCountService.record(propertyId, viewerKeyResolver.resolve(authUser, request));
         }
-        return ApiResponse.success(result.response());
+        return ApiResponse.success(response);
     }
 }
