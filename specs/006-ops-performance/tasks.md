@@ -27,8 +27,8 @@
 - [x] T624 [P] 통합(`ActuatorMetricsIntegrationTest`, RANDOM_PORT): **Authorization 없이 `GET /actuator/prometheus` → 200 + `cache_requests_total` 노출**, `/actuator/health` → 200. (관리 포트 분리 미채택으로 `@LocalManagementPort` 대신 `@LocalServerPort`)
 
 ## Phase 4. 부하 검증 (k6, 원칙 VII)
-- [ ] T630 k6 스크립트: ① 상세 조회 부하(캐시 hit-ratio·writeback 배치 효과) ② 인기목록 부하 ③ 검색 baseline
-- [ ] T631 실측 → `docs/load-test-results.md` 갱신(캐시 전/후 DB write 감소, hit-ratio, p95). **수치 선기재 금지** — 측정값만 기록
+- [x] T630 k6 스크립트 3종: `loadtest/k6/property-detail.js`(상세 캐시 hit-ratio·writeback 효과), `popular.js`(인기목록 캐시), `es-search.js`(전문검색 baseline). 기존 `lib/common.js` 재사용
+- [~] T631 `docs/load-test-results.md` §6 **측정 계획 + 실행법 + 메트릭 스크레이프법 + TBD 표** 추가. **실측 수치는 미기재(원칙 VII)** — 이 환경엔 k6 미설치 → 스택 기동 후 사용자가 실행해 hit-ratio/DB write 감소/p95 채움. 커스텀 메트릭(`cache_requests_total` 등, Phase 3)으로 산출
 
 ## Phase 5. 배포 + 마감
 - [ ] T640 앱 멀티스테이지 `Dockerfile`(gradle jdk21 build → temurin 21-jre) + `.dockerignore`

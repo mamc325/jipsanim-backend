@@ -81,6 +81,48 @@
 
 ---
 
+## 6. 조회수 카운팅 + 캐싱 (6차, k6) — ⏳ 측정 대기(TBD)
+
+> **원칙 VII(측정 후 주장)**: 아래 수치는 **아직 측정하지 않음**. k6 실행 후 실측값으로 채운다.
+> 캐시 hit-ratio·DB write 감소는 부하 종료 후 `/actuator/prometheus` 스크레이프로 산출.
+
+측정 대상(개선 전후 비교):
+1. **상세 조회 캐시 효과** — cache-aside(TTL 300s) hit-ratio·p95. (`property-detail.js`)
+2. **조회수 writeback 배치로 DB write 감소** — 상세 요청 N건 → DB `view_count` UPDATE 는 매물수 × writeback주기 수준으로 수렴(요청마다 UPDATE 대비 감소).
+3. **인기목록 캐시 효과** — 단일 키 cache-aside hit-ratio·p95. (`popular.js`)
+4. **ES 전문검색 baseline** — 안정적 지연 baseline(품질이 근거, 지연은 참고). (`es-search.js`)
+
+### 실행법
+```bash
+docker compose up -d                     # mysql·redis(·es) 기동
+./gradlew bootRun                        # 앱 기동(별도 셸)
+# 데이터 시드: 매물 등록→관리자 승인(ACTIVE), 조회가 쌓이면 인기 랭킹 형성
+
+K6="docker run --rm --add-host=host.docker.internal:host-gateway \
+  -e BASE_URL=http://host.docker.internal:8080 -v $PWD/loadtest/k6:/scripts grafana/k6 run"
+$K6 /scripts/property-detail.js
+$K6 /scripts/popular.js
+$K6 /scripts/es-search.js
+
+# 부하 종료 후 메트릭 스크레이프(개선 지표 산출)
+curl -s localhost:8080/actuator/prometheus | grep -E \
+  'cache_requests_total|cache_errors_total|view_dedup_skip_total|view_flush_total|view_flush_delta_total'
+```
+
+### 결과 (TBD — 실측 후 기입)
+| 항목 | 지표 | 값 |
+| --- | --- | --- |
+| 상세 캐시 | hit-ratio (`cache_requests_total{cache="detail"}`) | _TBD_ |
+| 상세 캐시 | p95 (`http_server_requests` `/api/properties/{propertyId}`) | _TBD_ |
+| 조회수 writeback | 요청 N건 대비 DB UPDATE 수(`view_flush_total`·주기) | _TBD_ |
+| 인기목록 | hit-ratio (`cache_requests_total{cache="popular"}`) | _TBD_ |
+| 인기목록 | p95 (`/api/properties/popular`) | _TBD_ |
+| ES 검색 | p95 (`/api/properties/search`) | _TBD_ |
+
+- **해석(가설, 검증 필요)**: 상세/인기 조회는 cache hit 시 DB 미접근 → hit-ratio 상승분만큼 DB 부하 감소. 조회수는 요청마다 DB UPDATE 대신 Redis 카운트 후 주기 배치 → DB write 대폭 감소(정확 수치 TBD).
+
+---
+
 ## 이력서용 측정 문장 (실측 기반)
 - HikariCP 커넥션 풀 튜닝으로 검색 API 처리량 **최대 +84%(87→160 RPS)**, p95 지연 **−55%(293→131ms)** 개선
 - 부하테스트로 **동시 승인 TOCTOU 경쟁을 발견**, 후보 행 비관적 락 적용으로 동시 50요청에서 **승인 1건·ACTIVE 1건 보장(중복 0)**
