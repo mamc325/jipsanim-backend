@@ -16,8 +16,10 @@ Constitution v1.0.0 의 Technology Constraints 를 "왜 골랐는가 / 대안은
 | 비동기 후속 | Outbox(4차) + Spring Scheduler | Kafka, RabbitMQ | DB 트랜잭션과 원자적, 인프라 최소 |
 | 대기열(2차) | Redis Sorted Set + TTL | DB 폴링, Kafka | 순번/TTL 예약권에 자연 적합 |
 | 검색(5차) | Elasticsearch + nori | DB LIKE, MySQL FT | 한글 형태소 검색 품질 |
+| 캐시/조회수(6차) | Redis(원자 Lua·writeback·ZSET 감쇠) | DB 카운터, @Cacheable | 부하 완화 + 정합성(유실 0)·트렌딩 |
+| 관측성(6차) | Micrometer/Prometheus·Grafana·Sentry | ELK, APM 유료 | 메트릭·대시보드·에러추적, 로컬 자족 |
 | 테스트 | JUnit5, Mockito, Testcontainers | H2, 순수 Mock | 실 DB/Redis 통합 신뢰성 |
-| 배포(6차) | Docker, GitHub Actions, AWS | 수동 배포 | 재현 가능한 파이프라인 |
+| 배포(6차) | Docker 멀티스테이지, docker-compose, GitHub Actions | 수동 배포 | 재현 가능한 파이프라인(이미지 빌드까지) |
 
 ---
 
@@ -56,6 +58,14 @@ Constitution v1.0.0 의 Technology Constraints 를 "왜 골랐는가 / 대안은
 - **결정**: MySQL 은 partial unique index 미지원 → ACTIVE 일 때만 값이 채워지는 생성 컬럼 `active_key` 에 UNIQUE.
 - **이유**: (region, type, deal) ACTIVE 기준 유일성을 DB 레벨 최종 방어선으로 보장.
 - **적용**: data-model §7 / plan D3.
+
+## ADR-007. 조회수/캐싱·관측성 — Redis 근사 카운터 + Micrometer (6차, ✅ 구현 완료)
+- **결정**: 조회수는 요청마다 DB UPDATE 대신 **Redis 카운트(원자 Lua: dedup+HINCRBY+ZINCRBY) → 주기 writeback**(`RENAME` 원자 배출). 인기 목록/상세는 **직접 cache-aside**(RedisTemplate+JSON), 트렌딩 랭킹은 ZSET+일 감쇠(`ZUNIONSTORE WEIGHTS`).
+- **이유**: DB 쓰기 부하 완화 + 정합성(배출 유실 0). `@Cacheable` 대신 직접 cache-aside 는 조립/부분 무효화·ACTIVE 조건부 저장·메트릭 계측이 명시적.
+- **정합성 등급**: 조회수는 **근사 카운터**(유실 0 지향, 중복 가산 크래시 창 허용) — 예약/정산(원칙 II 엄격)과 구분. 인기 목록 정확성은 **DB ACTIVE 필터가 권위**, ZSET/캐시는 best-effort(2계층).
+- **관측성/보안**: Micrometer→Prometheus(`/actuator/prometheus` permitAll 무인증, 외부 노출은 compose/프록시 차단) + Grafana + Sentry(빈 DSN=no-op). `management.prometheus.metrics.export.enabled: true` 명시 필요(폴백 off).
+- **배포**: 멀티스테이지 Docker 이미지 + docker-compose 전 스택 + GitHub Actions(빌드·Testcontainers·이미지). 실 배포 제외.
+- **적용**: Constitution 원칙 II·V·VII / specs/006.
 
 ## 버전/도구 (고정됨)
 - JDK 21, Gradle 8.14.x (Kotlin DSL), **Spring Boot 3.5.16**

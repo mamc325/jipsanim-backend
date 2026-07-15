@@ -121,6 +121,16 @@
 - ES 장애 시 `SEARCH_UNAVAILABLE`(503). 기존 `GET /api/properties`(QueryDSL 조건 검색)와 **별도 엔드포인트로 공존**.
 - 색인 동기화: 매물 승인/삭제/반려 시 4차 Outbox(`PROPERTY_INDEX`/`PROPERTY_UNINDEX`)로 DB↔ES 정합성 유지.
 
+### 6차 — 인기 매물 / 조회수 (`specs/006-ops-performance`, ✅ **구현 완료**)
+정본: `specs/006-ops-performance/contracts/`
+| Method | Path | 권한 |
+| --- | --- | --- |
+| GET | `/api/properties/popular?limit=`(기본 10, 1~50) | PUBLIC |
+
+- 트렌딩 랭킹 Top-N(Redis ZSET+일 감쇠). **cache-aside 단일 키**(`popular:list` TTL 60s), Redis 장애 시 DB `view_count` desc 폴백. ACTIVE 제외는 조회 시 DB 필터가 보장(권위).
+- 기존 `GET /api/properties/{id}`(상세) 응답에 **`viewCount`** 필드 추가. 조회 시 조회수 집계(ACTIVE 공개표현·dedup·best-effort). 상세 cache-aside(역할별 읽기: anonymous·USER=cache-first, REALTOR·ADMIN=우회).
+- 관측성: `GET /actuator/prometheus`(무인증 스크레이프, 외부 노출은 compose/프록시 차단).
+
 ### 미배정 — 신고
 | Method | Path | 권한 |
 | --- | --- | --- |

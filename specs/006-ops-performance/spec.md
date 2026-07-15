@@ -135,16 +135,16 @@
 - **관측성 무영향**: Sentry/Prometheus 실패가 요청 경로를 막지 않음(비동기/샘플링·미설정 시 no-op).
 
 ## 8. 인수 기준
-- [ ] **ACTIVE 공개표현 반환 시에만**(`countablePublicAccess`) Redis 카운트(dedup 적용) → writeback → DB `view_count` 반영. 동일 viewerKey 윈도우 내 재조회 미가산. 비공개 표현(소유자/ADMIN 만 도달)·404 는 미집계.
-- [ ] writeback 원자 배출로 배출 중 유입 증가분 **유실 0**(EXISTS→RENAME 기반) — 통합 테스트로 고정(원칙 VIII).
-- [ ] `GET /api/properties/popular` 인기 Top-N 반환(`PopularPropertyResponse`), cache-aside 단일 키(hit/miss 메트릭). **ACTIVE 이탈 매물 제외는 조회 시 DB ACTIVE 필터가 보장(권위)** — `popular:list` cache hit 은 evict 실패 시 최대 60s stale 허용, ZSET stale member 는 감쇠/필터로 자연 정리(P1).
-- [ ] 일 감쇠 스케줄러가 `ZUNIONSTORE WEIGHTS` 로 전체 score×factor + 임계 미만 제거(트렌딩 유지) — 단위 테스트로 고정.
-- [ ] 매물 상세 cache-aside 는 **ACTIVE 공개표현만 저장/조회**(비공개 표현은 애초 미저장 → 접근제어 원천 차단), 상태 전이 시 evict(afterCommit best-effort → 비활성 후 **최대 TTL 300s stale 허용** 정책).
-- [ ] Redis 장애 시 상세/인기 조회가 **degrade 로 정상 응답**(조회수만 skip).
-- [ ] `/actuator/prometheus` 노출 + 캐시/조회수 커스텀 메트릭 존재. Grafana 대시보드 provisioning. Sentry DSN 설정 시 예외 캡처(미설정 시 비활성).
-- [ ] k6 시나리오로 캐시 hit-ratio·DB write 감소 **실측치** 기록(원칙 VII, 선기재 금지).
-- [ ] docker-compose 전 스택 기동 + GitHub Actions CI(빌드·테스트·이미지) 그린.
-- [ ] 6차 기능이 기존 상세/검색/예약 경로 정합성에 영향 없음(회귀 그린).
+- [x] **ACTIVE 공개표현 반환 시에만**(`countablePublicAccess`) Redis 카운트(dedup) → writeback → DB `view_count`. 동일 viewerKey 미가산, 비공개/404 미집계. (`ViewCountIntegrationTest`)
+- [x] writeback 원자 배출로 유입 증가분 **유실 0**(EXISTS→RENAME) — 통합 테스트 고정. (`ViewCountIntegrationTest.writebackLossless`)
+- [x] `GET /api/properties/popular` Top-N(`PopularPropertyResponse`), cache-aside 단일 키. **ACTIVE 이탈 제외=DB 필터 권위**(stale ZSET member 제외 검증). (`PopularPropertyIntegrationTest`)
+- [x] 일 감쇠 `ZUNIONSTORE WEIGHTS` + 임계 제거 — 단위 테스트 고정. (`PopularPropertyIntegrationTest.decayHalvesAndTrims`)
+- [x] 상세 cache-aside 는 **ACTIVE 공개표현만 저장/조회**(역할별 읽기, REALTOR/ADMIN 우회), 상태 전이 evict(afterCommit). 비활성 후 최대 TTL stale 허용 정책. (`PropertyDetailCacheIntegrationTest`)
+- [x] Redis 장애 시 조회 degrade(인기=DB 폴백, 상세=DB 직조회, 조회수만 skip). (서비스 try/catch·폴백 구현)
+- [x] `/actuator/prometheus` 노출(무인증) + 커스텀 메트릭. Grafana provisioning. Sentry 빈 DSN=no-op. (`ActuatorMetricsIntegrationTest`)
+- [~] k6 시나리오 3종 작성 + 측정 계획(`docs/load-test-results.md §6`). **실측치는 TBD**(원칙 VII, k6 미설치 → 스택 기동 후 채움 — 선기재 금지 준수).
+- [x] 멀티스테이지 Dockerfile(이미지 빌드 검증) + docker-compose 전 스택(app/monitoring profile) + GitHub Actions CI(build+Testcontainers+이미지).
+- [x] 6차 기능이 기존 상세/검색/예약/정산/알림 경로에 영향 없음(전체 스위트 회귀 그린).
 
 ## 9. 다음 산출물
 `plan` → `data-model` → `contracts` → `tasks`. (신규 인프라 = Prometheus/Grafana/Sentry + docker-compose 전 스택 + GitHub Actions)

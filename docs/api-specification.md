@@ -2,14 +2,14 @@
 
 > 부동산(오피스텔) 매물 검증 + 방문 예약/정산 + 알림 백엔드. 실제 구현 기준 명세.
 
-## 📌 총 API 개수 (40개)
+## 📌 총 API 개수 (41개)
 
 | 도메인 | API 개수 |
 | --- | --- |
 | 인증/회원 | 3개 |
 | 주소 검색 | 1개 |
 | 매물 (중개사) | 4개 |
-| 매물 조회 (사용자) | 3개 (조건검색·상세·전문검색) |
+| 매물 조회 (사용자) | 4개 (조건검색·상세·전문검색·인기) |
 | 방문 슬롯 | 3개 |
 | 대기열 / 예약 / 결제 | 6개 |
 | 예약 취소/환불 | 1개 |
@@ -662,6 +662,7 @@ GET /api/properties/{propertyId}
 ```
 
 - **설계 근거**: 매물 상세 + 이미지 + 검증 상태/리스크를 한 번에 조회. 공개 API.
+- **6차 부수효과**: ACTIVE 공개표현 조회 시 **조회수 집계**(dedup·best-effort) + **상세 cache-aside**(역할별 읽기: anonymous·USER=cache-first, REALTOR·ADMIN=우회→DB). 응답에 **`viewCount`** 추가.
 
 **Response 200**
 
@@ -674,7 +675,7 @@ GET /api/properties/{propertyId}
     "bjdongCode": "1168010100", "sigunguCode": "11680", "regionName": "강남구", "nearStation": "강남역",
     "propertyType": "OFFICETEL", "dealType": "MONTHLY_RENT",
     "deposit": 10000000, "monthlyRent": 700000, "area": 33.0, "roomCount": 1,
-    "status": "ACTIVE", "verificationStatus": "APPROVED", "riskLevel": "LOW",
+    "status": "ACTIVE", "verificationStatus": "APPROVED", "riskLevel": "LOW", "viewCount": 1532,
     "images": [ { "imageUrl": "https://cdn.example.com/1.jpg", "primary": true, "sortOrder": 0 } ]
   },
   "error": null
@@ -745,6 +746,47 @@ GET /api/properties/search?q=&sigunguCode=&dealType=&propertyType=&minDeposit=&m
 | --- | --- | --- |
 | 400 | VALIDATION_ERROR | `min>max`, `size` 범위 초과, deep pagination |
 | 503 | SEARCH_UNAVAILABLE | Elasticsearch 장애(검색만 일시 중단) |
+
+---
+
+### 4.4 인기 매물 (Redis 트렌딩 랭킹 · 6차)
+
+```
+GET /api/properties/popular?limit=10
+```
+
+- **설계 근거**
+    - 조회수 기반 **트렌딩 Top-N**(Redis Sorted Set `property:popular`, 조회 시 `ZINCRBY`, **일 1회 감쇠**로 최근 인기 반영). 공개 API.
+    - **cache-aside 단일 키**(`popular:list`, Top-50, TTL 60s). miss 시 `ZREVRANGE` over-fetch → **DB `status=ACTIVE` 필터**(제외 권위) → ZSET 순서 복원 → 캐시. Redis 장애 시 DB `view_count` desc 폴백(degrade).
+- **설계 결정 사항**
+    - `viewCount`(생애 누적, DB)와 트렌딩 score(Redis, 감쇠)는 **의도적 분리**. score 자체는 응답 미노출.
+    - ACTIVE 이탈 매물 제외는 **조회 시 DB 필터가 보장** — ZSET stale member(ZREM 실패/재유입)는 감쇠/필터로 자연 정리. `popular:list` cache hit은 evict 실패 시 최대 60s stale 허용(정책).
+
+**Query Parameters**
+
+| 파라미터 | 타입 | 설명 |
+| --- | --- | --- |
+| limit | number | 상위 개수. 기본 10, 1~50 (초과 시 400) |
+
+**Response 200** (`data` = `List<PopularPropertyResponse>`)
+
+```json
+{
+  "success": true,
+  "data": [
+    { "propertyId": 12, "title": "강남역 5분 풀옵션 오피스텔", "regionName": "강남구",
+      "dealType": "MONTHLY_RENT", "deposit": 10000000, "monthlyRent": 700000,
+      "area": 33.0, "roomCount": 1, "primaryImageUrl": "https://cdn.example.com/1.jpg", "viewCount": 1532 }
+  ],
+  "error": null
+}
+```
+
+**Error Responses**
+
+| Status | Error Code | 설명 |
+| --- | --- | --- |
+| 400 | VALIDATION_ERROR | `limit` 범위(1~50) 위반 |
 
 ---
 

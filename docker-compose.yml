@@ -49,5 +49,51 @@ services:
       timeout: 5s
       retries: 12
 
+  # 6차: 앱(멀티스테이지 Dockerfile). 서비스명으로 인프라 접속. profile app 로 선택 기동.
+  app:
+    build:
+      context: .
+    container_name: jipsanim-app
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      REDIS_HOST: redis
+      ES_URIS: http://elasticsearch:9200
+      # SENTRY_DSN 미설정 → Sentry no-op. 설정 시 여기 주입(커밋 금지).
+    profiles: ["app"]
+
+  # 6차 관측성 스택(선택). `docker compose --profile monitoring up -d`
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: jipsanim-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    profiles: ["monitoring"]
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: jipsanim-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    profiles: ["monitoring"]
+
 volumes:
   jipsanim-mysql-data:
