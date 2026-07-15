@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jipsanim.common.error.BusinessException;
 import com.jipsanim.common.error.ErrorCode;
+import com.jipsanim.common.metrics.PropertyMetrics;
 import com.jipsanim.property.dto.PopularPropertyResponse;
 import com.jipsanim.property.repository.PropertyRepository;
 import org.slf4j.Logger;
@@ -30,16 +31,20 @@ public class PopularPropertyService {
     private static final TypeReference<List<PopularPropertyResponse>> LIST_TYPE = new TypeReference<>() {
     };
 
+    private static final String CACHE = "popular";
+
     private final StringRedisTemplate redis;
     private final PropertyRepository propertyRepository;
     private final ObjectMapper objectMapper;
+    private final PropertyMetrics metrics;
     private final PopularProperties props;
 
     public PopularPropertyService(StringRedisTemplate redis, PropertyRepository propertyRepository,
-                                  ObjectMapper objectMapper, PopularProperties props) {
+                                  ObjectMapper objectMapper, PropertyMetrics metrics, PopularProperties props) {
         this.redis = redis;
         this.propertyRepository = propertyRepository;
         this.objectMapper = objectMapper;
+        this.metrics = metrics;
         this.props = props;
     }
 
@@ -48,13 +53,24 @@ public class PopularPropertyService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "limit 은 1~" + props.max() + " 여야 합니다.");
         }
 
-        String cached = tryGet();
-        if (cached != null) {
-            return slice(deserialize(cached), limit); // cache hit
+        String cached;
+        try {
+            cached = redis.opsForValue().get(PropertyCacheKeys.POPULAR_LIST);
+        } catch (RuntimeException e) {
+            log.warn("popular:list 조회 실패(degrade): {}", e.getMessage());
+            metrics.cacheError(CACHE);
+            return propertyRepository.findTopActiveByViewCount(limit);
         }
+        if (cached != null) {
+            metrics.cacheHit(CACHE);
+            return slice(deserialize(cached), limit);
+        }
+        metrics.cacheMiss(CACHE);
+
         List<Long> ids = tryReverseRange();
-        if (ids == null) {
-            return propertyRepository.findTopActiveByViewCount(limit); // Redis 장애 → DB 폴백
+        if (ids == null) { // ZSET 조회 실패 → DB 폴백
+            metrics.cacheError(CACHE);
+            return propertyRepository.findTopActiveByViewCount(limit);
         }
         List<PopularPropertyResponse> ordered = assemble(ids);
         trySet(serialize(ordered));
@@ -82,15 +98,6 @@ public class PopularPropertyService {
 
     private List<PopularPropertyResponse> slice(List<PopularPropertyResponse> list, int limit) {
         return list.size() <= limit ? list : list.subList(0, limit);
-    }
-
-    private String tryGet() {
-        try {
-            return redis.opsForValue().get(PropertyCacheKeys.POPULAR_LIST);
-        } catch (RuntimeException e) {
-            log.warn("popular:list 캐시 조회 실패(degrade): {}", e.getMessage());
-            return null;
-        }
     }
 
     private List<Long> tryReverseRange() {

@@ -1,0 +1,57 @@
+{
+  "title": "Jipsanim 6차 관측성",
+  "uid": "jipsanim-6cha",
+  "schemaVersion": 39,
+  "editable": true,
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "캐시 hit-ratio (cache)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (cache) (rate(cache_requests_total{result=\"hit\"}[5m])) / sum by (cache) (rate(cache_requests_total[5m]))",
+          "legendFormat": "{{cache}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }
+    },
+    {
+      "id": 2,
+      "title": "캐시 요청/에러 (rate)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "sum by (cache,result) (rate(cache_requests_total[5m]))", "legendFormat": "{{cache}} {{result}}" },
+        { "expr": "sum by (cache) (rate(cache_errors_total[5m]))", "legendFormat": "{{cache}} error" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "조회수 dedup skip / writeback delta (rate)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "expr": "rate(view_dedup_skip_total[5m])", "legendFormat": "dedup skip" },
+        { "expr": "rate(view_flush_total[5m])", "legendFormat": "flush batches" },
+        { "expr": "rate(view_flush_delta_total[5m])", "legendFormat": "flush delta" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "엔드포인트 p95 지연 (http_server_requests)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (uri, le) (rate(http_server_requests_seconds_bucket{uri=~\"/api/properties.*\"}[5m])))",
+          "legendFormat": "{{uri}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    }
+  ]
+}

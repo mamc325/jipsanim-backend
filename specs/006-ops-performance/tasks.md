@@ -20,11 +20,11 @@
   - (evict 실패 시 최대 TTL stale 은 정책 문서화 — 엄격 테스트 대상 아님)
 
 ## Phase 3. 관측성 (Prometheus/Grafana/Sentry)
-- [ ] T620 **`micrometer-registry-prometheus` 만 추가**(actuator 는 이미 build.gradle.kts:23 존재, application.yml `management:` 도 존재 — P3, 중복 추가 금지) + 기존 management 블록에 `prometheus` exposure·**`management.server.port=9090`** 보강. compose 에서 **9090 호스트 미매핑(내부망 전용)**(P3·P5). **actuator 전용 `@Order(0)` SecurityFilterChain 분리**(`securityMatcher(EndpointRequest.to("prometheus","health"))`+permitAll+csrf off), 기존 API 체인 불변(P2). healthcheck 는 내부 `:9090/actuator/health`
-- [ ] T621 커스텀 메트릭(**코드명 dot, 노출명 `*_total` 자동, P6**): `cache.requests{cache,result}`, `cache.errors{cache}`, `view.dedup.skip`, `view.flush`, `view.flush.delta` + 상세/인기/검색 Timer. **Timer `endpoint` 태그는 고정값(`property_detail`/`popular`/`search`)만 — propertyId 등 가변값 태그 금지(cardinality, P4)**
-- [ ] T622 Sentry(**`io.sentry:sentry-spring-boot-starter-jakarta`, Boot 3 — Boot BOM 비관리라 `sentry-bom` 또는 명시 버전 필수**): 통합 코드/예외 캡처 구현 + **DSN 미설정 시 no-op 게이팅**(빈 DSN=off). DSN 은 sentry.io 발급값 → 사용자가 **`application-local.yml`(gitignore, 커밋 금지)** 에 수동 입력(자동화 불가). 환경/샘플링 태그. 테스트/CI 는 Sentry off
-- [ ] T623 Grafana provisioning(`docker/grafana/`): Prometheus datasource + 대시보드 JSON(캐시 hit-ratio, dedup 비율, writeback 델타, 엔드포인트 p95). prometheus 스크레이프 설정(`docker/prometheus/prometheus.yml`, **타깃 `app:9090`**)
-- [ ] T624 [P] 슬라이스 테스트: 커스텀 메트릭 노출 확인 + **`management.server.port=0` + `@LocalManagementPort`(운영 9090 고정 아님) 로 관리 포트 조회 → `GET {mgmtPort}/actuator/prometheus` (Authorization 없이) → 200**(전용 `@Order(0)` permit 체인 401 리스크 고정, P3-테스트). 테스트 프로파일 Sentry/스케줄러 off
+- [x] T620 `micrometer-registry-prometheus` 추가(actuator 기존) + management 블록에 `prometheus` exposure + **`management.prometheus.metrics.export.enabled: true`**(기본 폴백이 off 로 판정되어 명시 필요 — 이 미설정이 원인이었음). **보안(P5 수정)**: 별도 관리 포트(9090) 시 자식 컨텍스트에 메인 체인 미적용(prometheus 401) 확인 → **actuator 를 앱 포트(8080) 동일**로 두고 `/actuator/prometheus`·`/actuator/health` permitAll(PUBLIC_PATHS). 외부 노출은 compose 포트 미공개 + 프록시 차단으로 제어(리뷰가 제시한 대안 b, 로컬 공개 허용)
+- [x] T621 커스텀 메트릭 `PropertyMetrics`(코드명 dot→`*_total`, P6): `cache.requests{cache,result}`·`cache.errors{cache}`·`view.dedup.skip`·`view.flush`·`view.flush.delta` 를 ViewCountService/Writeback·PopularPropertyService·PropertyDetailCache 에 배선. 엔드포인트 지연은 actuator 기본 `http_server_requests`(templated URI=저카디널리티)로 커버(P4 — 커스텀 Timer 미도입)
+- [x] T622 Sentry `io.sentry:sentry-spring-boot-starter-jakarta`(`sentry-bom:7.18.0`) + application.yml `sentry.dsn=${SENTRY_DSN:}`(빈 DSN=no-op). DSN 은 사용자가 `application-local.yml`(gitignore) 수동 입력. 코드 게이팅 불요(SDK 가 빈 DSN 시 자동 비활성)
+- [x] T623 provisioning: `docker/prometheus/prometheus.yml`(타깃 `app:8080`) + `docker/grafana/provisioning/{datasources,dashboards}` datasource + 대시보드 JSON(캐시 hit-ratio/dedup/writeback delta/엔드포인트 p95)
+- [x] T624 [P] 통합(`ActuatorMetricsIntegrationTest`, RANDOM_PORT): **Authorization 없이 `GET /actuator/prometheus` → 200 + `cache_requests_total` 노출**, `/actuator/health` → 200. (관리 포트 분리 미채택으로 `@LocalManagementPort` 대신 `@LocalServerPort`)
 
 ## Phase 4. 부하 검증 (k6, 원칙 VII)
 - [ ] T630 k6 스크립트: ① 상세 조회 부하(캐시 hit-ratio·writeback 배치 효과) ② 인기목록 부하 ③ 검색 baseline

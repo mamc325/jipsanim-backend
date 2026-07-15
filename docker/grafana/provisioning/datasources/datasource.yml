@@ -1,0 +1,10 @@
+# 6차 관측성: Grafana Prometheus datasource 자동 프로비저닝.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true

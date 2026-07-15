@@ -1,6 +1,7 @@
 package com.jipsanim.property.popular;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jipsanim.common.metrics.PropertyMetrics;
 import com.jipsanim.property.dto.PropertyDetailResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,13 +19,18 @@ public class PropertyDetailCache {
 
     private static final Logger log = LoggerFactory.getLogger(PropertyDetailCache.class);
 
+    private static final String CACHE = "detail";
+
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
+    private final PropertyMetrics metrics;
     private final long ttlSeconds;
 
-    public PropertyDetailCache(StringRedisTemplate redis, ObjectMapper objectMapper, PopularProperties props) {
+    public PropertyDetailCache(StringRedisTemplate redis, ObjectMapper objectMapper,
+                               PropertyMetrics metrics, PopularProperties props) {
         this.redis = redis;
         this.objectMapper = objectMapper;
+        this.metrics = metrics;
         this.ttlSeconds = props.detailTtlSeconds();
     }
 
@@ -32,9 +38,15 @@ public class PropertyDetailCache {
     public PropertyDetailResponse get(Long propertyId) {
         try {
             String json = redis.opsForValue().get(PropertyCacheKeys.detailKey(propertyId));
-            return json == null ? null : objectMapper.readValue(json, PropertyDetailResponse.class);
+            if (json == null) {
+                metrics.cacheMiss(CACHE);
+                return null;
+            }
+            metrics.cacheHit(CACHE);
+            return objectMapper.readValue(json, PropertyDetailResponse.class);
         } catch (Exception e) {
             log.warn("상세 캐시 조회 실패(degrade) id={}: {}", propertyId, e.getMessage());
+            metrics.cacheError(CACHE);
             return null;
         }
     }

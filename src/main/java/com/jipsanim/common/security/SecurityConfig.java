@@ -25,7 +25,10 @@ public class SecurityConfig {
             "/api/auth/**",
             "/swagger-ui/**",
             "/v3/api-docs/**",
-            "/actuator/health"
+            // 6차: actuator health/prometheus 무인증 스크레이프(P5). 외부 노출은 compose 포트 미공개 +
+            // 리버스 프록시에서 /actuator/* 차단으로 제어(개인 프로젝트 로컬 공개 허용).
+            "/actuator/health",
+            "/actuator/prometheus"
     };
 
     private final JwtTokenProvider tokenProvider;

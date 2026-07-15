@@ -1,0 +1,11 @@
+# 6차 관측성: Prometheus 스크레이프 설정. 앱(app:8080) /actuator/prometheus 내부망 타깃.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: jipsanim-app
+    metrics_path: /actuator/prometheus
+    static_configs:
+      # docker-compose 내부 네트워크: 앱 서비스명 app(8080). 외부 노출은 compose 포트 미공개로 차단.
+      - targets: ["app:8080"]

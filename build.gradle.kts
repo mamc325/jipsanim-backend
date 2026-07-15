@@ -32,6 +32,11 @@ dependencies {
 	// Elasticsearch (5차: nori 한글 전문검색)
 	implementation("org.springframework.boot:spring-boot-starter-data-elasticsearch")
 
+	// 6차 관측성: Prometheus 메트릭(actuator 기존) + Sentry 에러추적(BOM 으로 버전 고정, Boot BOM 비관리)
+	implementation("io.micrometer:micrometer-registry-prometheus")
+	implementation(platform("io.sentry:sentry-bom:7.18.0"))
+	implementation("io.sentry:sentry-spring-boot-starter-jakarta")
+
 	// QueryDSL (jakarta) — 조건 검색
 	implementation("com.querydsl:querydsl-jpa:${queryDslVersion}:jakarta")
 	annotationProcessor("com.querydsl:querydsl-apt:${queryDslVersion}:jakarta")

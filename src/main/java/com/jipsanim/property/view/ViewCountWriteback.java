@@ -1,5 +1,6 @@
 package com.jipsanim.property.view;
 
+import com.jipsanim.common.metrics.PropertyMetrics;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -23,10 +24,12 @@ public class ViewCountWriteback {
 
     private final StringRedisTemplate redis;
     private final ViewCountWritebackStore store;
+    private final PropertyMetrics metrics;
 
-    public ViewCountWriteback(StringRedisTemplate redis, ViewCountWritebackStore store) {
+    public ViewCountWriteback(StringRedisTemplate redis, ViewCountWritebackStore store, PropertyMetrics metrics) {
         this.redis = redis;
         this.store = store;
+        this.metrics = metrics;
     }
 
     /** 원자 배출 → 단일 트랜잭션 반영 → 커밋 성공 후 DEL. */
@@ -41,6 +44,8 @@ public class ViewCountWriteback {
         Map<Object, Object> deltas = redis.opsForHash().entries(ViewCountRedisConfig.VIEW_FLUSHING);
         if (!deltas.isEmpty()) {
             store.applyDeltas(deltas); // 단일 트랜잭션(별도 빈)
+            long total = deltas.values().stream().mapToLong(v -> Long.parseLong(String.valueOf(v))).sum();
+            metrics.flushBatch(total);
         }
         redis.delete(ViewCountRedisConfig.VIEW_FLUSHING); // 커밋 성공 후에만
     }
