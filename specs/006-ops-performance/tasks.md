@@ -3,12 +3,11 @@
 규칙: `[P]` 병렬 가능. 정합성 로직(dedup/writeback 유실 0/감쇠)은 테스트 먼저. 브랜치 `feat/006-p<phase>-*`.
 
 ## Phase 1. 조회수 카운팅 (Redis INCR + writeback)
-- [ ] T600 DDL **`ALTER TABLE property ADD COLUMN view_count BIGINT NOT NULL DEFAULT 0`**(테이블명 `property`) + Property 엔티티 `viewCount`. **DTO(P2): 신규 `PopularPropertyResponse`(요약+viewCount) + `PropertyDetailResponse` 에 viewCount 추가. `PropertySummaryResponse`(검색 공유)는 불변**
-- [ ] T601 `ViewCountService.record(propertyId, viewerKey)`: **단일 Lua** 로 `SET NX EX`(dedup, window 30m)+`HINCRBY view:pending`+`ZINCRBY property:popular` 원자 실행(부분성공 방지, P1). Lua 반환 0=중복→`view.dedup.skip`. **best-effort try/catch**(Redis 장애가 조회에 전파 X). `viewerKey`=인증 `u:{userId}`/비인증 `ip:{clientIp}`(`viewcount.trust-proxy` true 일 때만 XFF, 아니면 RemoteAddr — P2)
-- [ ] T602 **`getDetail` 반환을 `PropertyDetailResult(response, countablePublicAccess)` 로 확장**(P1 — 현 코드는 ACTIVE 면 소유자/ADMIN 판별 전 즉시 반환이라 공개/소유자 구분 불가). `countablePublicAccess=true`(ACTIVE 공개표현)일 때만 record 훅 — **cache hit/miss 무관 호출**(P2). 비공개 표현·404 미집계. 컨트롤러가 viewerKey 전달 + 프로퍼티(`viewcount.window`, `viewcount.trust-proxy`, `viewcount.writeback-enabled`, `viewcount.writeback-interval`)
-- [ ] T603 `ViewCountWriteback`(@Scheduled, 게이팅): **`EXISTS view:flushing`(잔존 선처리)→아니면 `EXISTS view:pending`→`RENAME view:pending view:flushing`(원자) → HGETALL → 단일 트랜잭션 `UPDATE property SET view_count += delta` → 커밋 후 DEL**(P6). 메트릭 훅 자리
-- [ ] T604 [P] 단위: dedup 신규/중복, viewerKey 도출, **writeback 유실 0**(배출 중 HINCRBY → 새 pending 보존), 크래시 창 문서화 검증
-- [ ] T605 [P] 통합(Testcontainers Redis+MySQL): 상세 조회→카운트→writeback→`view_count` 반영, 동일 viewerKey 윈도우 내 미가산, Redis 장애 시 조회 정상(degrade). **집계 게이트(P1)**: 비공개 상태(DRAFT/PENDING/REJECTED/CLOSED/HIDDEN)에 대한 소유자/ADMIN 접근 → `countable=false` 미집계; **ACTIVE 는 소유자/ADMIN 이 조회해도 `countable=true` 가산**(공개표현); 404 미집계
+- [x] T600 `property.view_count`(엔티티 `viewCount`, `columnDefinition` 기본 0; ddl-auto update) + `PropertyDetailResponse.viewCount`. `PropertySummaryResponse` 불변. (`PopularPropertyResponse` 는 사용처인 **Phase 2 로 이연** — 미사용 DTO 선생성 회피)
+- [x] T601 `ViewCountService.record`: **단일 Lua**(`lua/view_count.lua`) `SET NX EX`+`HINCRBY view:pending`+`ZINCRBY property:popular` 원자. best-effort try/catch. `ViewerKeyResolver`(인증 `u:{userId}`/비인증 `ip:{clientIp}`, `viewcount.trust-proxy` 시만 XFF)
+- [x] T602 `getDetail` → `PropertyDetailResult(response, countablePublicAccess)`. 컨트롤러가 ACTIVE 공개표현일 때만 record 훅 호출(viewerKey 전달). 프로퍼티 `ViewCountProperties`(window/trust-proxy) + yml writeback-enabled/interval
+- [x] T603 `ViewCountWriteback.flush()`(항상 빈) `EXISTS flushing→아니면 EXISTS pending→RENAME→HGETALL→단일 tx UPDATE→커밋 후 DEL`(P6) + `ViewCountWritebackStore`(@Transactional 분리) + `ViewCountWritebackScheduler`(게이팅). 메트릭 훅 자리(Phase 3)
+- [x] T604·T605 통합(`ViewCountIntegrationTest`, Testcontainers Redis+MySQL): dedup 1회, 다른 viewerKey 각각 집계+ZINCRBY, **writeback 유실 0**(flushing 중 유입→새 pending 보존), getDetail 게이트(ACTIVE=true/소유자 DRAFT=false), 빈 pending no-op — 5/5 통과
 
 ## Phase 2. 인기 랭킹 + cache-aside
 - [ ] T610 `PopularPropertyService.top(limit)` cache-aside **단일 키**: `popular:list`(Top-50, TTL 60s) hit/miss → miss 시 **`ZREVRANGE property:popular 0 199`(over-fetch, P4) → DB ACTIVE 필터 → `propertyId→response` 맵으로 순서 복원(P5) → 상위 50 캐시** → 앱에서 `limit` slice. limit 1~50 검증(400). 무효화 `DEL popular:list` 1회(P7). over-fetch 크기는 프로퍼티(`popular.overfetch`)

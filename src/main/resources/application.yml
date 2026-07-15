@@ -68,6 +68,12 @@ outbox:
   batch-size: ${OUTBOX_BATCH_SIZE:50}                        # 선점 배치 크기(LIMIT)
   reclaim-timeout-seconds: ${OUTBOX_RECLAIM_TIMEOUT_SEC:300} # PROCESSING 고착 복구 임계
 
+viewcount:                                                    # 6차 조회수 카운팅
+  window-seconds: ${VIEWCOUNT_WINDOW_SEC:1800}               # 중복조회 dedup 윈도우(30분)
+  trust-proxy: ${VIEWCOUNT_TRUST_PROXY:false}                # true 일 때만 X-Forwarded-For 신뢰
+  writeback-enabled: ${VIEWCOUNT_WRITEBACK_ENABLED:true}     # writeback 스케줄러 활성(테스트 false)
+  writeback-interval-ms: ${VIEWCOUNT_WRITEBACK_MS:60000}     # writeback 주기(1분)
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
