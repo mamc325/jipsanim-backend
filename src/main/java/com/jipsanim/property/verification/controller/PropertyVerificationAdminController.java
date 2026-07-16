@@ -7,7 +7,6 @@ import com.jipsanim.property.domain.VerificationStatus;
 import com.jipsanim.property.verification.dto.RejectionRequest;
 import com.jipsanim.property.verification.dto.VerificationDecisionResponse;
 import com.jipsanim.property.verification.dto.VerificationSummaryResponse;
-import com.jipsanim.property.verification.repository.PropertyVerificationRepository;
 import com.jipsanim.property.verification.service.PropertyVerificationAdminService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -27,12 +26,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class PropertyVerificationAdminController {
 
     private final PropertyVerificationAdminService adminService;
-    private final PropertyVerificationRepository verificationRepository;
 
-    public PropertyVerificationAdminController(PropertyVerificationAdminService adminService,
-                                               PropertyVerificationRepository verificationRepository) {
+    public PropertyVerificationAdminController(PropertyVerificationAdminService adminService) {
         this.adminService = adminService;
-        this.verificationRepository = verificationRepository;
     }
 
     @GetMapping
@@ -40,8 +36,7 @@ public class PropertyVerificationAdminController {
             @RequestParam(required = false) VerificationStatus status,
             @RequestParam(required = false) RiskLevel riskLevel,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ApiResponse.success(verificationRepository.search(status, riskLevel, pageable)
-                .map(VerificationSummaryResponse::from));
+        return ApiResponse.success(adminService.list(status, riskLevel, pageable));
     }
 
     @PostMapping("/{verificationId}/approval")

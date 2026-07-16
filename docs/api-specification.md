@@ -2,13 +2,13 @@
 
 > 부동산(오피스텔) 매물 검증 + 방문 예약/정산 + 알림 백엔드. 실제 구현 기준 명세.
 
-## 📌 총 API 개수 (41개)
+## 📌 총 API 개수 (42개)
 
 | 도메인 | API 개수 |
 | --- | --- |
 | 인증/회원 | 3개 |
 | 주소 검색 | 1개 |
-| 매물 (중개사) | 4개 |
+| 매물 (중개사) | 5개 (등록·수정·검증요청·삭제·내 매물 목록) |
 | 매물 조회 (사용자) | 4개 (조건검색·상세·전문검색·인기) |
 | 방문 슬롯 | 3개 |
 | 대기열 / 예약 / 결제 | 6개 |
@@ -607,6 +607,38 @@ DELETE /api/properties/{propertyId}
 
 ---
 
+### 3.5 내 매물 목록 (중개사)
+
+```
+GET /api/me/properties?status=&page=0&size=20
+```
+
+- **설계 근거**: 공개 검색(`GET /api/properties`)은 ACTIVE 만 반환하고 realtorId 필터가 없어, 중개사가 자기 **DRAFT/PENDING/REJECTED** 매물을 볼 수단이 없었음. `/me` 패턴으로 본인 전 상태 매물 조회. DTO projection.
+- **Headers**: `Authorization: Bearer {accessToken}` (REALTOR)
+- **Query**: `status`(optional, `PropertyStatus`), `page`/`size`. DELETED 는 항상 제외.
+
+**Response 200** (`data` = Page of `MyPropertyResponse`)
+
+```json
+{
+  "success": true,
+  "data": {
+    "content": [
+      { "propertyId": 12, "title": "역삼 오피스텔", "regionName": "서울특별시 강남구 역삼동",
+        "status": "PENDING", "verificationStatus": "REVIEW_REQUIRED", "riskLevel": "MEDIUM",
+        "dealType": "MONTHLY_RENT", "deposit": 10000000, "monthlyRent": 700000,
+        "area": 33.0, "roomCount": 1, "createdAt": "2026-07-16T10:00:00" }
+    ],
+    "totalElements": 1, "totalPages": 1, "number": 0, "size": 20, "first": true, "last": true
+  },
+  "error": null
+}
+```
+
+**Error Responses**: 403(REALTOR 아님)
+
+---
+
 ## 🔎 4. 매물 조회 (사용자 · 공개)
 
 ### 4.1 매물 검색 (조건 검색)
@@ -663,6 +695,7 @@ GET /api/properties/{propertyId}
 
 - **설계 근거**: 매물 상세 + 이미지 + 검증 상태/리스크를 한 번에 조회. 공개 API.
 - **6차 부수효과**: ACTIVE 공개표현 조회 시 **조회수 집계**(dedup·best-effort) + **상세 cache-aside**(역할별 읽기: anonymous·USER=cache-first, REALTOR·ADMIN=우회→DB). 응답에 **`viewCount`** 추가.
+- **`priceStandard`(nullable)**: (sigungu·매물유형·거래유형) ACTIVE 시세 기준(min/max 보증금·월세, sampleCount, dataStatus). 상세 화면 "시세 대비" 계산용. 기준 없으면 null. 상세 캐시에 포함(시세 기준 변경 빈도 낮아 TTL 300s stale 허용).
 
 **Response 200**
 
@@ -676,6 +709,8 @@ GET /api/properties/{propertyId}
     "propertyType": "OFFICETEL", "dealType": "MONTHLY_RENT",
     "deposit": 10000000, "monthlyRent": 700000, "area": 33.0, "roomCount": 1,
     "status": "ACTIVE", "verificationStatus": "APPROVED", "riskLevel": "LOW", "viewCount": 1532,
+    "priceStandard": { "minDeposit": 8000000, "maxDeposit": 12000000, "minMonthlyRent": 600000,
+      "maxMonthlyRent": 850000, "sampleCount": 42, "dataStatus": "SUFFICIENT" },
     "images": [ { "imageUrl": "https://cdn.example.com/1.jpg", "primary": true, "sortOrder": 0 } ]
   },
   "error": null
@@ -990,7 +1025,7 @@ POST /api/visit-slots/{slotId}/reservations
 GET /api/me/reservations
 ```
 
-- **설계 근거**: 사용자가 자신의 예약 이력을 조회.
+- **설계 근거**: 사용자가 자신의 예약 이력을 조회. 예약 카드 표시용으로 **매물명·지역·방문 시간**을 함께 내려줌(Property·VisitSlot 조인).
 
 **Headers**: `Authorization: Bearer {accessToken}` (USER)
 
@@ -1002,7 +1037,9 @@ GET /api/me/reservations
   "data": [
     {
       "reservationId": 11, "propertyId": 12, "visitSlotId": 5, "status": "CONFIRMED",
-      "amount": 10000, "reservedAt": "2026-07-14T10:00:00", "confirmedAt": "2026-07-14T10:01:00"
+      "amount": 10000, "reservedAt": "2026-07-14T10:00:00", "confirmedAt": "2026-07-14T10:01:00",
+      "propertyTitle": "역삼 센트럴 오피스텔", "regionName": "서울특별시 강남구 역삼동",
+      "slotStartTime": "2026-07-16T10:00:00", "slotEndTime": "2026-07-16T10:30:00"
     }
   ],
   "error": null
@@ -1140,7 +1177,7 @@ GET /api/me/settlements?month=2026-07
   "success": true,
   "data": [
     {
-      "settlementId": 3, "realtorId": 5, "settlementMonth": "2026-07",
+      "settlementId": 3, "realtorId": 5, "realtorName": "역삼 센트럴 공인중개사", "settlementMonth": "2026-07",
       "totalPaymentAmount": 500000, "totalRefundAmount": 50000, "netAmount": 450000,
       "platformFee": 90000, "carryOverIn": 0, "carryOverOut": 0, "payoutAmount": 360000, "status": "CONFIRMED"
     }
@@ -1232,7 +1269,7 @@ PATCH /api/notifications/{notificationId}
 GET /api/admin/property-verifications?status=&riskLevel=&page=0&size=20
 ```
 
-- **설계 근거**: 검증 요청된 매물을 상태/리스크로 필터링해 심사 대기열을 확인.
+- **설계 근거**: 검증 요청된 매물을 상태/리스크로 필터링해 심사 대기열을 확인. 화면 표시용으로 **매물명·지역·등록가·시세 기준**을 병합(propertyId 배치 조회 + 시세 기준 sigunguCode IN 배치 조회, N+1 금지). `reasons` 의 `PRICE_OUT_OF_RANGE` 로 프론트가 "가격 이상치" 뱃지 판정.
 
 **Query Parameters (모두 optional)**
 
@@ -1251,7 +1288,11 @@ GET /api/admin/property-verifications?status=&riskLevel=&page=0&size=20
     "content": [
       {
         "verificationId": 8, "propertyId": 12, "status": "REVIEW_REQUIRED", "riskLevel": "MEDIUM",
-        "reasons": ["PRICE_OUT_OF_RANGE"], "requestedAt": "2026-07-14T09:00:00"
+        "reasons": ["PRICE_OUT_OF_RANGE"], "requestedAt": "2026-07-14T09:00:00",
+        "propertyTitle": "역삼 오피스텔", "regionName": "서울특별시 강남구 역삼동",
+        "dealType": "MONTHLY_RENT", "deposit": 10000000, "monthlyRent": 900000,
+        "priceStandard": { "minDeposit": 8000000, "maxDeposit": 12000000, "minMonthlyRent": 600000,
+          "maxMonthlyRent": 850000, "sampleCount": 42, "dataStatus": "SUFFICIENT" }
       }
     ],
     "totalElements": 1, "totalPages": 1, "number": 0, "size": 20

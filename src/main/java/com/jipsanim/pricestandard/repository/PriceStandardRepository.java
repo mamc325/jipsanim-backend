@@ -12,6 +12,8 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface PriceStandardRepository extends JpaRepository<PriceStandard, Long> {
@@ -27,6 +29,9 @@ public interface PriceStandardRepository extends JpaRepository<PriceStandard, Lo
     /** 매물 검증용 조회 (Phase 5) */
     Optional<PriceStandard> findBySigunguCodeAndPropertyTypeAndDealTypeAndStatus(
             String sigunguCode, PropertyType propertyType, DealType dealType, PriceStandardStatus status);
+
+    /** 검증 목록 배치용: 여러 sigunguCode 의 시세 기준 한 번에 조회(호출측에서 type/deal 로 인덱싱). */
+    List<PriceStandard> findByStatusAndSigunguCodeIn(PriceStandardStatus status, Collection<String> sigunguCodes);
 
     @Query("select p from PriceStandard p "
             + "where (:status is null or p.status = :status) "

@@ -31,9 +31,13 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     /** 슬롯을 점유 중인 PENDING 예약(다른 사용자 포함) — 재예약 시 만료 정리 대상 */
     Optional<Reservation> findFirstByVisitSlotIdAndStatus(Long visitSlotId, ReservationStatus status);
 
+    // Reservation 은 property/slot 을 Long ID 로만 참조 → Property·VisitSlot 를 명시 조인(id 매칭).
     @Query("select new com.jipsanim.reservation.dto.ReservationSummaryResponse("
-            + "r.id, r.propertyId, r.visitSlotId, r.status, p.amount, r.reservedAt, r.confirmedAt) "
-            + "from Reservation r, com.jipsanim.reservation.domain.Payment p "
-            + "where p.reservationId = r.id and r.userId = :userId order by r.reservedAt desc")
+            + "r.id, r.propertyId, r.visitSlotId, r.status, p.amount, r.reservedAt, r.confirmedAt, "
+            + "prop.title, prop.regionName, s.startTime, s.endTime) "
+            + "from Reservation r, com.jipsanim.reservation.domain.Payment p, "
+            + "com.jipsanim.property.domain.Property prop, com.jipsanim.reservation.slot.domain.VisitSlot s "
+            + "where p.reservationId = r.id and prop.id = r.propertyId and s.id = r.visitSlotId "
+            + "and r.userId = :userId order by r.reservedAt desc")
     List<ReservationSummaryResponse> findSummaries(@Param("userId") Long userId);
 }
