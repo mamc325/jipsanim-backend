@@ -8,12 +8,19 @@ import com.jipsanim.property.domain.PropertyStatus;
 import com.jipsanim.property.dto.PropertyCreateRequest;
 import com.jipsanim.property.dto.PropertyDetailResponse;
 import com.jipsanim.property.dto.PropertyDetailResult;
+import com.jipsanim.property.dto.MyPropertyResponse;
 import com.jipsanim.property.dto.PropertyMutationResponse;
 import com.jipsanim.property.dto.PropertyUpdateRequest;
 import com.jipsanim.property.repository.PropertyRepository;
+import com.jipsanim.pricestandard.domain.PriceStandard;
+import com.jipsanim.pricestandard.domain.PriceStandardStatus;
+import com.jipsanim.pricestandard.dto.PriceStandardSummary;
+import com.jipsanim.pricestandard.repository.PriceStandardRepository;
 import com.jipsanim.user.domain.Realtor;
 import com.jipsanim.user.domain.Role;
 import com.jipsanim.user.repository.RealtorRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,14 +31,17 @@ public class PropertyService {
 
     private final PropertyRepository propertyRepository;
     private final RealtorRepository realtorRepository;
+    private final PriceStandardRepository priceStandardRepository;
     private final com.jipsanim.search.index.PropertyIndexEventRecorder indexRecorder;
     private final com.jipsanim.property.popular.PopularCacheEvictor cacheEvictor;
 
     public PropertyService(PropertyRepository propertyRepository, RealtorRepository realtorRepository,
+                           PriceStandardRepository priceStandardRepository,
                            com.jipsanim.search.index.PropertyIndexEventRecorder indexRecorder,
                            com.jipsanim.property.popular.PopularCacheEvictor cacheEvictor) {
         this.propertyRepository = propertyRepository;
         this.realtorRepository = realtorRepository;
+        this.priceStandardRepository = priceStandardRepository;
         this.indexRecorder = indexRecorder;
         this.cacheEvictor = cacheEvictor;
     }
@@ -80,15 +90,32 @@ public class PropertyService {
         if (property.getStatus() == PropertyStatus.DELETED) {
             throw new BusinessException(ErrorCode.NOT_FOUND);
         }
+        // 시세 기준(ACTIVE 1건, 없으면 null) — 상세 화면 "시세 대비" 계산용.
+        // 캐시 주의: 이 응답은 property:detail:{id}(TTL 300s)에 캐시됨. 시세 기준은 관리자 배치로만 바뀌어
+        // 변경 빈도가 매우 낮으므로 최대 TTL(300s) 범위의 stale 은 허용(6차 캐시 정책과 동일).
+        PriceStandardSummary priceStandard = PriceStandardSummary.from(activePriceStandard(property));
         if (property.getStatus() == PropertyStatus.ACTIVE) {
             // ACTIVE 공개표현 → 조회수 카운트·캐시 대상(6차 P1)
-            return new PropertyDetailResult(PropertyDetailResponse.from(property), true);
+            return new PropertyDetailResult(PropertyDetailResponse.from(property, priceStandard), true);
         }
         // 비공개(DRAFT/PENDING/REJECTED/CLOSED/HIDDEN)는 소유자 또는 ADMIN 만 — 미집계·미캐시
         if (authUser != null && (authUser.role() == Role.ADMIN || isOwner(authUser.userId(), property))) {
-            return new PropertyDetailResult(PropertyDetailResponse.from(property), false);
+            return new PropertyDetailResult(PropertyDetailResponse.from(property, priceStandard), false);
         }
         throw new BusinessException(ErrorCode.NOT_FOUND);
+    }
+
+    /** 중개사 본인 매물 목록(전 상태, DELETED 제외). status 선택 필터. */
+    @Transactional(readOnly = true)
+    public Page<MyPropertyResponse> myProperties(Long userId, PropertyStatus status, Pageable pageable) {
+        Realtor realtor = currentRealtor(userId);
+        return propertyRepository.findMyProperties(realtor.getId(), status, pageable);
+    }
+
+    private PriceStandard activePriceStandard(Property p) {
+        return priceStandardRepository.findBySigunguCodeAndPropertyTypeAndDealTypeAndStatus(
+                p.getSigunguCode(), p.getPropertyType(), p.getDealType(), PriceStandardStatus.ACTIVE)
+                .orElse(null);
     }
 
     private void applyImages(Property property, List<PropertyCreateRequest.ImageRequest> images) {

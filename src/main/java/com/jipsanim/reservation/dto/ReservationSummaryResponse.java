@@ -11,5 +11,9 @@ public record ReservationSummaryResponse(
         ReservationStatus status,
         Long amount,
         LocalDateTime reservedAt,
-        LocalDateTime confirmedAt) {
+        LocalDateTime confirmedAt,
+        String propertyTitle,
+        String regionName,
+        LocalDateTime slotStartTime,
+        LocalDateTime slotEndTime) {
 }

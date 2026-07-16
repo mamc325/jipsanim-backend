@@ -6,6 +6,7 @@ import com.jipsanim.property.domain.PropertyStatus;
 import com.jipsanim.property.domain.PropertyType;
 import com.jipsanim.property.domain.RiskLevel;
 import com.jipsanim.property.domain.VerificationStatus;
+import com.jipsanim.pricestandard.dto.PriceStandardSummary;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -30,12 +31,18 @@ public record PropertyDetailResponse(
         VerificationStatus verificationStatus,
         RiskLevel riskLevel,
         long viewCount,
+        PriceStandardSummary priceStandard,
         List<Image> images) {
 
     public record Image(String imageUrl, boolean primary, int sortOrder) {
     }
 
     public static PropertyDetailResponse from(Property p) {
+        return from(p, null);
+    }
+
+    /** priceStandard 는 (sigungu, propertyType, dealType) ACTIVE 시세 기준. 없으면 null. */
+    public static PropertyDetailResponse from(Property p, PriceStandardSummary priceStandard) {
         List<Image> images = p.getImages().stream()
                 .map(i -> new Image(i.getImageUrl(), i.isPrimary(), i.getSortOrder()))
                 .toList();
@@ -43,6 +50,7 @@ public record PropertyDetailResponse(
                 p.getId(), p.getRealtor().getId(), p.getTitle(), p.getDescription(), p.getRoadAddress(),
                 p.getBjdongCode(), p.getSigunguCode(), p.getRegionName(), p.getNearStation(),
                 p.getPropertyType(), p.getDealType(), p.getDeposit(), p.getMonthlyRent(), p.getArea(),
-                p.getRoomCount(), p.getStatus(), p.getVerificationStatus(), p.getRiskLevel(), p.getViewCount(), images);
+                p.getRoomCount(), p.getStatus(), p.getVerificationStatus(), p.getRiskLevel(), p.getViewCount(),
+                priceStandard, images);
     }
 }

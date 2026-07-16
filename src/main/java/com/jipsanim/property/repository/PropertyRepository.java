@@ -2,6 +2,10 @@ package com.jipsanim.property.repository;
 
 import com.jipsanim.property.domain.DealType;
 import com.jipsanim.property.domain.Property;
+import com.jipsanim.property.domain.PropertyStatus;
+import com.jipsanim.property.dto.MyPropertyResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -14,6 +18,20 @@ public interface PropertyRepository extends JpaRepository<Property, Long>, Prope
 
     @EntityGraph(attributePaths = {"images", "realtor"})
     Optional<Property> findWithImagesById(Long id);
+
+    /** 중개사 본인 매물 목록(DTO projection). status optional, DELETED 항상 제외. */
+    @Query(value = "select new com.jipsanim.property.dto.MyPropertyResponse("
+            + "p.id, p.title, p.regionName, p.status, p.verificationStatus, p.riskLevel, p.dealType, "
+            + "p.deposit, p.monthlyRent, p.area, p.roomCount, p.createdAt) "
+            + "from Property p where p.realtor.id = :realtorId "
+            + "and p.status <> com.jipsanim.property.domain.PropertyStatus.DELETED "
+            + "and (:status is null or p.status = :status)",
+            countQuery = "select count(p) from Property p where p.realtor.id = :realtorId "
+            + "and p.status <> com.jipsanim.property.domain.PropertyStatus.DELETED "
+            + "and (:status is null or p.status = :status)")
+    Page<MyPropertyResponse> findMyProperties(@Param("realtorId") Long realtorId,
+                                              @Param("status") PropertyStatus status,
+                                              Pageable pageable);
 
     /** 6차 조회수 writeback: Redis 배출 델타를 DB 에 증분 반영(bulk, 영속성 컨텍스트 우회). */
     @Modifying
